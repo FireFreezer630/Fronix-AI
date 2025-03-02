@@ -353,7 +353,7 @@ Always choose parameters that best serve the user's information needs.
         />
       </div>
       <main className="main-content">
-        <div className="chat-header">
+        <div className="chat-header glassmorphic-card">
           <button className="menu-toggle" onClick={toggleSidebar} aria-label="Toggle sidebar">
             <Bars3Icon className="icon-sm" />
           </button>

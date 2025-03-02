@@ -94,20 +94,13 @@ body {
 
 /* Neumorphic Mixins */
 .neumorphic {
-  background: var(--neu-flat);
-  box-shadow: var(--neu-shadow-distance) var(--neu-shadow-distance) calc(var(--neu-shadow-distance) * 2) var(--neu-dark),
-              calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * -1) calc(var(--neu-shadow-distance) * 2) var(--neu-light);
-  border-radius: var(--radius-md);
-  border: none;
-  transition: all var(--transition-normal);
+  box-shadow: none; /* Remove any glow or shadow */
+  -webkit-box-shadow: none;
+  background: transparent; /* Keep it clean */
+  border: 1px solid rgba(209, 213, 219, 0.5); /* Light mode border */
 }
 
-.neumorphic:hover:not(:disabled) {
-  box-shadow: calc(var(--neu-shadow-distance) * 0.7) calc(var(--neu-shadow-distance) * 0.7) calc(var(--neu-shadow-distance) * 1.5) var(--neu-dark),
-              calc(var(--neu-shadow-distance) * -0.7) calc(var(--neu-shadow-distance) * -0.7) calc(var(--neu-shadow-distance) * 1.5) var(--neu-light);
-  transform: translateY(-2px);
-  transition: all var(--transition-fast);
-}
+
 
 .neumorphic:active:not(:disabled),
 .neumorphic.active {
@@ -758,7 +751,7 @@ body {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+ 
   display: flex;
   align-items: center;
   justify-content: center;
@@ -822,12 +815,14 @@ body {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
+  position: relative; /* Ensure it stays in its own space */
 }
 
 .modal-close:hover {
   color: var(--error-color);
   background-color: rgba(231, 76, 60, 0.1);
   transform: rotate(90deg);
+  transform-origin: center; /* Explicitly set rotation origin to center */
 }
 
 .modal-body {
@@ -1035,4 +1030,76 @@ body {
   .modal {
     width: 95%;
   }
+}
+/* Custom Scrollbar for Settings Modal */
+.modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 12px;
+}
+
+/* Webkit browsers (Chrome, Safari, Edge) */
+.modal-body::-webkit-scrollbar {
+  width: 12px;
+  padding: 2px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(to right, rgba(155, 155, 155, 0.6), rgba(155, 155, 155, 0.8));
+  border-radius: 100vh;
+  border: 4px solid transparent;
+  background-clip: padding-box;
+  min-height: 40px;
+}
+
+.modal-body::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover, #909090);
+}
+
+/* Light mode specific */
+.light-mode .modal-body::-webkit-scrollbar-thumb {
+  background: #b0b0b0; /* Subtle gray for light mode */
+}
+
+.light-mode .modal-body::-webkit-scrollbar-thumb:hover {
+  background: #909090;
+}
+
+/* Dark mode specific */
+.dark-mode .modal-body::-webkit-scrollbar-thumb {
+  background: #505050; /* Darker gray for dark mode */
+}
+
+.dark-mode .modal-body::-webkit-scrollbar-thumb:hover {
+  background: #707070;
+}
+
+/* Firefox scrollbar */
+.modal-body {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(155, 155, 155, 0.8) transparent;
+}
+
+.light-mode .modal-body {
+  scrollbar-color: #b0b0b0 transparent;
+}
+
+.dark-mode .modal-body {
+  scrollbar-color: #505050 transparent;
+}
+.glassmorphic-card {
+    backdrop-filter: blur(7px) saturate(200%);
+    -webkit-backdrop-filter: blur(7px) saturate(200%);
+    background-color: rgba(255, 255, 255, 0.45);
+
+    border: 1px solid rgba(209, 213, 219, 0.3);
+}
+.dark-mode .glassmorphic-card {
+  background-color: rgba(17, 24, 39, 0.45); /* Darker background for dark mode */
+  border: 1px solid rgba(75, 85, 99, 0.3); /* Dark mode border */
 }

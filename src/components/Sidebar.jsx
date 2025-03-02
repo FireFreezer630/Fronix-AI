@@ -12,7 +12,7 @@ export const Sidebar = ({
 }) => {
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      <div className="sidebar-header">
+      <div className="sidebar-header glassmorphic-card">
         <button className="new-chat-btn" onClick={onNewConversation}>
           {isCollapsed ? <PlusIcon className="icon-sm" /> : (
             <>

@@ -7,7 +7,7 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
     tavilyApiKey: settings.tavilyApiKey || import.meta.env.VITE_TAVILY_API_KEY || '',
     endpoint: settings.endpoint || import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com',
     modelName: settings.modelName || 'gpt-4o',
-    temperature: settings.temperature || 0.7,
+    // Removed: temperature: settings.temperature || 0.7,
     maxTokens: settings.maxTokens || 8000,
     darkMode: settings.darkMode || false
   });
@@ -37,7 +37,7 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal glassmorphic">
+      <div className="modal glassmorphic-card">
         <div className="modal-header">
           <h2 className="modal-title">Settings</h2>
           <button className="modal-close" onClick={onClose}>
@@ -126,27 +126,6 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
             </div>
             
             <div className="form-group">
-              <label className="form-label" htmlFor="temperature">Temperature</label>
-              <input
-                className="form-input neumorphic"
-                type="range"
-                id="temperature"
-                name="temperature"
-                min="0"
-                max="2"
-                step="0.1"
-                value={formData.temperature}
-                onChange={handleChange}
-              />
-              <div className="range-labels">
-                <span>More Precise (0)</span>
-                <span>Balanced (1)</span>
-                <span>More Creative (2)</span>
-              </div>
-              <p className="form-help">Controls randomness: lower values are more deterministic, higher values more creative.</p>
-            </div>
-            
-            <div className="form-group">
               <label className="form-label" htmlFor="maxTokens">Max Tokens</label>
               <input
                 className="form-input neumorphic"
@@ -160,6 +139,7 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
               />
               <p className="form-help">Maximum length of the generated response. Higher values allow longer responses.</p>
             </div>
+            {/* Removed the temperature form group */}
           </form>
         </div>
         
