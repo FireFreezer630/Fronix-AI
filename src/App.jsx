@@ -37,16 +37,19 @@ function App() {
     return saved ? JSON.parse(saved) : false;
   });
 
+  // Load API settings from environment variables first, then localStorage
   const [apiSettings, setApiSettings] = useState(() => {
     const saved = localStorage.getItem('apiSettings');
-    return saved ? JSON.parse(saved) : {
-      apiKey: import.meta.env.VITE_OPENAI_API_KEY || '',
-      tavilyApiKey: import.meta.env.VITE_TAVILY_API_KEY || '',
-      endpoint: import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com',
-      modelName: 'gpt-4o',
-      temperature: 0.7,
-      maxTokens: 8000,
-      darkMode: false
+    const savedSettings = saved ? JSON.parse(saved) : {};
+    
+    return {
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY || savedSettings.apiKey || '',
+      tavilyApiKey: import.meta.env.VITE_TAVILY_API_KEY || savedSettings.tavilyApiKey || '',
+      endpoint: import.meta.env.VITE_API_ENDPOINT || savedSettings.endpoint || 'https://models.inference.ai.azure.com',
+      modelName: savedSettings.modelName || 'gpt-4o',
+      temperature: savedSettings.temperature || 0.7,
+      maxTokens: savedSettings.maxTokens || 8000,
+      darkMode: savedSettings.darkMode || false
     };
   });
 
@@ -55,6 +58,8 @@ function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const titleInputRef = useRef(null);
+  const sidebarRef = useRef(null);
+  const mainContentRef = useRef(null);
   
   // Set system prompt with current date
   useEffect(() => {
@@ -117,6 +122,26 @@ Always choose parameters that best serve the user's information needs.`;
       setEditedTitle(currentConversation.title);
     }
   }, [currentConversation]);
+
+  // Handle click outside sidebar to close it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        !isSidebarCollapsed && 
+        sidebarRef.current && 
+        !sidebarRef.current.contains(event.target) &&
+        mainContentRef.current && 
+        mainContentRef.current.contains(event.target)
+      ) {
+        setIsSidebarCollapsed(true);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSidebarCollapsed]);
 
   const createNewConversation = () => {
     const newConversation = {
@@ -370,7 +395,7 @@ Always choose parameters that best serve the user's information needs.`;
 
   return (
     <div className={`app ${apiSettings.darkMode ? 'dark-mode' : 'light-mode'}`}>
-      <div className={`sidebar-container ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+      <div className={`sidebar-container ${isSidebarCollapsed ? 'collapsed' : ''}`} ref={sidebarRef}>
         <Sidebar
           conversations={conversations}
           currentConversationId={currentConversationId}
@@ -379,9 +404,10 @@ Always choose parameters that best serve the user's information needs.`;
           onDeleteConversation={deleteConversation}
           onOpenSettings={() => setIsSettingsOpen(true)}
           isCollapsed={isSidebarCollapsed}
+          onCollapseSidebar={() => setIsSidebarCollapsed(true)}
         />
       </div>
-      <main className="main-content">
+      <main className="main-content" ref={mainContentRef}>
         <div className="chat-header glassmorphic-card">
           <button className="menu-toggle" onClick={toggleSidebar} aria-label="Toggle sidebar">
             <Bars3Icon className="icon-sm" />

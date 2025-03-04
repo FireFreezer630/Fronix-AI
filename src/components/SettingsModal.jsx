@@ -1,16 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { XMarkIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 
 export const SettingsModal = ({ settings, onSave, onClose }) => {
+  // Initialize form data with environment variables first, then settings
   const [formData, setFormData] = useState({
-    apiKey: settings.apiKey || import.meta.env.VITE_OPENAI_API_KEY || '',
-    tavilyApiKey: settings.tavilyApiKey || import.meta.env.VITE_TAVILY_API_KEY || '',
-    endpoint: settings.endpoint || import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com',
+    apiKey: import.meta.env.VITE_OPENAI_API_KEY || settings.apiKey || '',
+    tavilyApiKey: import.meta.env.VITE_TAVILY_API_KEY || settings.tavilyApiKey || '',
+    endpoint: import.meta.env.VITE_API_ENDPOINT || settings.endpoint || 'https://models.inference.ai.azure.com',
     modelName: settings.modelName || 'gpt-4o',
-    // Removed: temperature: settings.temperature || 0.7,
+    temperature: settings.temperature || 0.7,
     maxTokens: settings.maxTokens || 8000,
     darkMode: settings.darkMode || false
   });
+
+  // Update form data when environment variables change
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      apiKey: import.meta.env.VITE_OPENAI_API_KEY || prev.apiKey,
+      tavilyApiKey: import.meta.env.VITE_TAVILY_API_KEY || prev.tavilyApiKey,
+      endpoint: import.meta.env.VITE_API_ENDPOINT || prev.endpoint
+    }));
+  }, [import.meta.env.VITE_OPENAI_API_KEY, import.meta.env.VITE_TAVILY_API_KEY, import.meta.env.VITE_API_ENDPOINT]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -126,6 +137,27 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
             </div>
             
             <div className="form-group">
+              <label className="form-label" htmlFor="temperature">Temperature</label>
+              <input
+                className="form-input neumorphic"
+                type="range"
+                id="temperature"
+                name="temperature"
+                min="0"
+                max="2"
+                step="0.1"
+                value={formData.temperature}
+                onChange={handleChange}
+              />
+              <div className="range-labels">
+                <span>Precise (0)</span>
+                <span>Balanced (1)</span>
+                <span>Creative (2)</span>
+              </div>
+              <p className="form-help">Controls the randomness of the AI's responses. Lower values make responses more deterministic.</p>
+            </div>
+            
+            <div className="form-group">
               <label className="form-label" htmlFor="maxTokens">Max Tokens</label>
               <input
                 className="form-input neumorphic"
@@ -139,7 +171,6 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
               />
               <p className="form-help">Maximum length of the generated response. Higher values allow longer responses.</p>
             </div>
-            {/* Removed the temperature form group */}
           </form>
         </div>
         

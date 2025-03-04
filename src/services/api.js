@@ -1,13 +1,16 @@
 import OpenAI from 'openai';
 import axios from 'axios';
 
+// Get environment variables with fallbacks
 const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com';
+const defaultOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+const defaultTavilyKey = import.meta.env.VITE_TAVILY_API_KEY || '';
 
 export const fetchChatCompletion = async (messages, settings) => {
   try {
     const client = new OpenAI({
       baseURL: settings.endpoint || defaultEndpoint,
-      apiKey: settings.apiKey || import.meta.env.VITE_OPENAI_API_KEY,
+      apiKey: settings.apiKey || defaultOpenAIKey,
       dangerouslyAllowBrowser: true, // Note: For development only; secure API keys in production
     });
 
@@ -120,7 +123,7 @@ export const performWebSearch = async (query, tavilyApiKey, options = {}) => {
     // Prepare search parameters
     const searchParams = {
       query,
-      api_key: tavilyApiKey || import.meta.env.VITE_TAVILY_API_KEY,
+      api_key: tavilyApiKey || defaultTavilyKey,
       search_depth: options.search_depth || 'basic',
       max_results: options.max_results || 5,
       include_answer: options.include_answer !== undefined ? options.include_answer : true,

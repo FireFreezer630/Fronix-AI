@@ -157,6 +157,7 @@ code {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative; /* Added to allow absolute positioning of sidebar */
 }
 
 /* Neumorphic Mixins */
@@ -197,21 +198,24 @@ code {
   transform: translateY(-2px);
 }
 
-/* Sidebar Container and Toggle */
+/* Sidebar Container and Toggle - UPDATED FOR OVERLAP */
 .sidebar-container {
-  position: relative;
-  transition: width var(--transition-slow);
+  position: absolute; /* Changed from relative to absolute */
+  height: 100%;
+  transition: transform var(--transition-slow); /* Changed from width to transform */
   z-index: 20;
   overflow: hidden;
+  width: 280px; /* Fixed width */
+  left: 0; /* Position at the left edge */
+  top: 0; /* Position at the top */
 }
 
 .sidebar-container.collapsed {
-  width: 0;
-  overflow: hidden;
+  transform: translateX(-100%); /* Move off-screen instead of width: 0 */
 }
 
 .sidebar-container:not(.collapsed) {
-  width: 280px;
+  transform: translateX(0); /* Show sidebar */
 }
 
 /* Sidebar Styles */
@@ -225,28 +229,28 @@ code {
   border-right: 1px solid var(--glass-border);
   box-shadow: 2px 0 15px var(--glass-shadow);
   z-index: 10;
-  transition: width var(--transition-slow), background-color var(--transition-normal);
+  transition: transform var(--transition-slow), background-color var(--transition-normal);
   width: 100%;
   overflow: hidden;
 }
 
 .sidebar.collapsed {
-  width: 0;
-  padding: 0;
-  border: none;
-  visibility: hidden;
+  transform: translateX(-100%); /* Move off-screen */
 }
 
 .sidebar-header {
   padding: var(--spacing-md);
   border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .new-chat-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 100%;
+  width: calc(100% - 40px); /* Make room for close button */
   padding: var(--spacing-md);
   background-color: var(--primary-color);
   color: white;
@@ -268,6 +272,27 @@ code {
   transform: translateY(1px);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   transition: all 0.1s ease;
+}
+
+/* Sidebar close button */
+.sidebar-close-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+}
+
+.sidebar-close-btn:hover {
+  background-color: var(--hover-color);
+  color: var(--primary-color);
+  transform: scale(1.1);
 }
 
 .icon {
@@ -425,7 +450,7 @@ code {
   opacity: 0.7;
 }
 
-/* Main Content Styles */
+/* Main Content Styles - UPDATED FOR SIDEBAR OVERLAP */
 .main-content {
   flex: 1;
   display: flex;
@@ -433,6 +458,10 @@ code {
   background-color: var(--bg-color);
   overflow: hidden;
   transition: background-color var(--transition-normal);
+  width: 100%; /* Take full width */
+  margin-left: 0; /* No margin by default */
+  position: relative; /* Added for z-index to work */
+  z-index: 5; /* Lower than sidebar */
 }
 
 /* Chat Window Styles */
@@ -1214,8 +1243,7 @@ code {
   }
   
   .sidebar.collapsed {
-    width: 0;
-    display: none;
+    transform: translateX(-100%);
   }
   
   .main-content {

@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlusIcon, TrashIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 export const Sidebar = ({
   conversations,
@@ -8,7 +8,8 @@ export const Sidebar = ({
   onNewConversation,
   onDeleteConversation,
   onOpenSettings,
-  isCollapsed
+  isCollapsed,
+  onCollapseSidebar
 }) => {
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -20,6 +21,15 @@ export const Sidebar = ({
             </>
           )}
         </button>
+        {!isCollapsed && (
+          <button 
+            className="sidebar-close-btn" 
+            onClick={onCollapseSidebar}
+            aria-label="Close sidebar"
+          >
+            <ChevronLeftIcon className="icon-sm" />
+          </button>
+        )}
       </div>
       
       <div className="conversations-list">

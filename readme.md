@@ -6,11 +6,15 @@ A ChatGPT-like clone built with React that integrates with the OpenAI API. This 
 
 - Chat interface similar to ChatGPT
 - Sidebar for managing multiple conversations
+  - Close sidebar by clicking outside or using the arrow button
+  - Automatically collapses on mobile for better space utilization
 - Settings panel for configuring API connection details
 - Support for Markdown in messages
-- Modern, responsive UI design
+- Modern, responsive UI design with glassmorphic elements
 - Client-side storage for saving conversations and settings
 - Web search capabilities with customizable parameters
+- Image generation using Pollinations.ai
+- Dark/Light mode toggle
 - Environment variables support for API keys
 
 ## Prerequisites
@@ -84,6 +88,10 @@ You can configure your API settings in two ways:
 - Click on a conversation in the sidebar to switch between conversations
 - Hover over a conversation to see the delete button
 - All conversations are stored in your browser's localStorage
+- Close the sidebar by:
+  - Clicking the arrow button in the top right of the sidebar
+  - Clicking anywhere outside the sidebar
+  - Using the menu button in the header on mobile
 
 ### Sending Messages
 
@@ -99,6 +107,22 @@ The assistant can perform web searches to answer questions about current events 
 - The AI will automatically decide when to use web search
 - The AI will customize search parameters based on your query type
 - You'll see a search indicator showing what parameters were chosen
+
+### Image Generation
+
+The assistant can generate images based on your descriptions:
+
+- Ask for an image with a detailed description
+- The AI will use Pollinations.ai to generate the image
+- The generated image will be displayed directly in the chat
+
+## UI Features
+
+- **Dark/Light Mode**: Toggle between dark and light themes in the settings panel
+- **Responsive Design**: Works on desktop, tablet, and mobile devices
+- **Glassmorphic UI**: Modern, translucent interface elements
+- **Markdown Support**: Format your messages with markdown syntax
+- **Collapsible Sidebar**: Save space by collapsing the sidebar when not needed
 
 ## Project Structure
 
@@ -134,6 +158,7 @@ All data is stored locally in your browser using localStorage:
 - Conversations and messages
 - API settings
 - UI preferences
+- Sidebar state
 
 No data is sent to any server except for the API requests to the configured endpoints.
 
