@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
 import { SettingsModal } from './components/SettingsModal';
-import { fetchChatCompletion, performWebSearch } from './services/api';
+import { fetchChatCompletion, performWebSearch, generateImage } from './services/api';
 import { Bars3Icon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import './App.css';
 
@@ -51,24 +51,23 @@ function App() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant with web search capabilities.');
+  const [systemPrompt, setSystemPrompt] = useState('You are a helpful assistant with web search and image generation capabilities.');
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const titleInputRef = useRef(null);
   
-  // Fetch system prompt with current date from external API on mount
+  // Set system prompt with current date
   useEffect(() => {
-    fetch('http://worldtimeapi.org/api/timezone/UTC')
-      .then(response => response.json())
-      .then(data => {
-        const date = new Date(data.utc_datetime);
-        const formattedDate = date.toLocaleDateString('en-US', {
-          month: 'long',
-          day: '2-digit',
-          year: 'numeric'
-        });
-        const prompt = `You are a helpful assistant with web search capabilities. The current date is ${formattedDate}. 
-        
+    // Get current date locally instead of relying on external API
+    const today = new Date();
+    const formattedDate = today.toLocaleDateString('en-US', {
+      month: 'long',
+      day: '2-digit',
+      year: 'numeric'
+    });
+    
+    const prompt = `You are a helpful assistant with web search and image generation capabilities. The current date is ${formattedDate}. 
+    
 When performing web searches, you can customize the search parameters based on the user's query:
 - search_depth: Use 'advanced' for complex queries requiring in-depth information, 'basic' for simple queries (default: basic)
 - max_results: Number of results to return, 1-20 (default: 5)
@@ -76,6 +75,9 @@ When performing web searches, you can customize the search parameters based on t
 - include_answer: Set to true to include an AI-generated summary of the search results (default: true)
 - include_images: Set to true to include image search results (useful for visual topics)
 - include_domains/exclude_domains: Arrays of specific domains to include or exclude
+
+For image generation, you can create images by using the generateImage function with a descriptive prompt.
+The image will be generated using Pollinations.ai and displayed directly in the chat.
 
 Guidelines for choosing parameters:
 - For recent news or events: use time_range='day' or 'week' and max_results=10
@@ -85,37 +87,8 @@ Guidelines for choosing parameters:
 - For technical documentation: consider using include_domains with specific technical sites
 
 Always choose parameters that best serve the user's information needs.`;
-        setSystemPrompt(prompt);
-      })
-      .catch(error => {
-        console.error('Error fetching date from WorldTimeAPI:', error);
-        // Fallback to local date if API fails
-        const today = new Date();
-        const formattedDate = today.toLocaleDateString('en-US', {
-          month: 'long',
-          day: '2-digit',
-          year: 'numeric'
-        });
-        setSystemPrompt(`You are a helpful assistant with web search capabilities. The current date is ${formattedDate} (local fallback).
-        
-When performing web searches, you can customize the search parameters based on the user's query:
-- search_depth: Use 'advanced' for complex queries requiring in-depth information, 'basic' for simple queries (default: basic)
-- max_results: Number of results to return, 1-20 (default: 5)
-- time_range: Filter by time - 'day', 'week', 'month', 'year' (use for time-sensitive queries)
-- include_answer: Set to true to include an AI-generated summary of the search results (default: true)
-- include_images: Set to true to include image search results (useful for visual topics)
-- include_domains/exclude_domains: Arrays of specific domains to include or exclude
-
-Guidelines for choosing parameters:
-- For recent news or events: use time_range='day' or 'week' and max_results=10
-- For research topics: use search_depth='advanced' and max_results=15
-- For simple factual questions: use search_depth='basic' and max_results=3
-- For visual topics (art, design, places): use include_images=true
-- For technical documentation: consider using include_domains with specific technical sites
-
-Always choose parameters that best serve the user's information needs.
-`);
-      });
+    
+    setSystemPrompt(prompt);
   }, []);
 
   // Apply dark mode
@@ -175,7 +148,7 @@ Always choose parameters that best serve the user's information needs.
 
   const sendMessage = async (messageContent) => {
     if (!messageContent.trim()) return;
-    if (!apiSettings.apiKey || !apiSettings.tavilyApiKey) {
+    if (!apiSettings.apiKey) {
       setIsSettingsOpen(true);
       return;
     }
@@ -201,6 +174,8 @@ Always choose parameters that best serve the user's information needs.
       const response = await fetchChatCompletion(messages, apiSettings);
       if (response.finish_reason === 'tool_calls') {
         const toolCall = response.message.tool_calls[0];
+        
+        // Handle web search
         if (toolCall.type === 'function' && toolCall.function.name === 'performWebSearch') {
           const functionArgs = JSON.parse(toolCall.function.arguments);
           const searchingMessage = { role: 'system', content: 'Searching the web...', timestamp: Date.now() };
@@ -283,8 +258,62 @@ Always choose parameters that best serve the user's information needs.
             messages: [...conv.messages.filter(msg => msg.content.startsWith('Searching')), assistantMessage]
           } : conv));
         }
+        // Handle image generation
+        else if (toolCall.type === 'function' && toolCall.function.name === 'generateImage') {
+          const functionArgs = JSON.parse(toolCall.function.arguments);
+          const generatingMessage = { 
+            role: 'system', 
+            content: `Generating image: "${functionArgs.prompt}"`, 
+            timestamp: Date.now() 
+          };
+          
+          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
+            ...conv,
+            messages: [...conv.messages, generatingMessage]
+          } : conv));
+
+          const imageUrl = await generateImage(functionArgs.prompt);
+          const toolResponse = {
+            role: 'tool',
+            content: JSON.stringify({ url: imageUrl }),
+            tool_call_id: toolCall.id,
+          };
+          
+          messages = [...messages, response.message, toolResponse];
+          const finalResponse = await fetchChatCompletion(messages, apiSettings);
+          
+          // Process the response to convert image URLs to markdown
+          let processedContent = finalResponse.message.content;
+          
+          // Create a message with the processed content
+          const assistantMessage = { 
+            role: 'assistant', 
+            content: processedContent, 
+            timestamp: Date.now(),
+            imageUrl: imageUrl // Store the image URL directly in the message
+          };
+          
+          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
+            ...conv,
+            messages: [...conv.messages.filter(msg => !msg.content.startsWith('Generating image')), assistantMessage]
+          } : conv));
+        }
       } else {
-        const assistantMessage = { role: 'assistant', content: response.message.content, timestamp: Date.now() };
+        // Process regular text responses
+        let processedContent = response.message.content;
+        
+        // Check for pollinations.ai URLs and convert them to markdown image syntax
+        const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
+        processedContent = processedContent.replace(pollinationsRegex, (match) => {
+          return `![Generated Image](${match})`;
+        });
+        
+        const assistantMessage = { 
+          role: 'assistant', 
+          content: processedContent, 
+          timestamp: Date.now() 
+        };
+        
         setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
           ...conv,
           messages: [...conv.messages, assistantMessage]

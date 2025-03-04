@@ -80,13 +80,30 @@ export const fetchChatCompletion = async (messages, settings) => {
           },
         },
       },
+      {
+        type: 'function',
+        function: {
+          name: 'generateImage',
+          description: 'Generates an image using Pollinations.ai based on a text prompt.',
+          parameters: {
+            type: 'object',
+            properties: {
+              prompt: {
+                type: 'string',
+                description: 'A detailed description of the image to generate. Be specific and descriptive for best results.',
+              }
+            },
+            required: ['prompt'],
+          },
+        },
+      }
     ];
 
     const response = await client.chat.completions.create({
       messages,
       tools,
       temperature: settings.temperature || 0.7,
-      max_tokens: settings.maxTokens || 8000,
+      max_tokens: parseInt(settings.maxTokens) || 8000,
       model: settings.modelName,
     });
 
@@ -123,5 +140,22 @@ export const performWebSearch = async (query, tavilyApiKey, options = {}) => {
   } catch (error) {
     console.error('Error in performWebSearch:', error);
     return JSON.stringify({ error: 'Failed to perform web search', details: error.message });
+  }
+};
+
+export const generateImage = async (prompt) => {
+  try {
+    // Encode the prompt for URL
+    const encodedPrompt = encodeURIComponent(prompt);
+    
+    // Create the Pollinations.ai URL
+    const imageUrl = `https://pollinations.ai/prompt/${encodedPrompt}`;
+    
+    console.log('Generated image URL:', imageUrl);
+    
+    return imageUrl;
+  } catch (error) {
+    console.error('Error in generateImage:', error);
+    throw new Error('Failed to generate image');
   }
 };

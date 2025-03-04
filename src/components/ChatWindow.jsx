@@ -42,6 +42,41 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
     }
   }, [conversation]);
 
+  // Process message content to handle special formats
+  const processMessageContent = (content, imageUrl) => {
+    // Check if the message has a direct imageUrl property (from image generation)
+    if (imageUrl) {
+      return (
+        <>
+          <ReactMarkdown>{content}</ReactMarkdown>
+          <div className="generated-image-container">
+            <img 
+              src={imageUrl} 
+              alt="Generated" 
+              className="generated-image" 
+              loading="lazy"
+            />
+            <p className="image-caption">Generated image</p>
+          </div>
+        </>
+      );
+    }
+    
+    // Check for pollinations.ai URLs in the content
+    const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
+    if (pollinationsRegex.test(content)) {
+      // Replace pollinations URLs with image tags
+      const processedContent = content.replace(
+        pollinationsRegex, 
+        (match) => `![Generated Image](${match})`
+      );
+      return <ReactMarkdown>{processedContent}</ReactMarkdown>;
+    }
+    
+    // Regular content
+    return <ReactMarkdown>{content}</ReactMarkdown>;
+  };
+
   // Render messages safely
   const renderMessages = () => {
     // Check if conversation and messages exist
@@ -59,7 +94,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       return (
         <div className="empty-state">
           <h2>Welcome to AI Chat Assistant</h2>
-          <p>Ask me anything or type a command to get started.</p>
+          <p>Ask me anything, search the web, or generate images!</p>
         </div>
       );
     }
@@ -77,7 +112,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
             {msg.role === 'user' ? '👤' : msg.role === 'assistant' ? '🤖' : '⚠️'}
           </div>
           <div className="message-content">
-            <ReactMarkdown>{msg.content}</ReactMarkdown>
+            {processMessageContent(msg.content, msg.imageUrl)}
           </div>
         </div>
       );
@@ -100,13 +135,13 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
         <div ref={endOfMessagesRef} />
       </div>
       
-      <form className="message-input-container" onSubmit={handleSubmit}>
+      <form className="message-input-container glassmorphic-card" onSubmit={handleSubmit}>
         <textarea
           ref={textareaRef}
           className="message-input"
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type a message..."
+          placeholder="Type a message, ask a question, or request an image..."
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
