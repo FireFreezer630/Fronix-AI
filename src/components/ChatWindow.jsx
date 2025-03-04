@@ -48,7 +48,13 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
     if (imageUrl) {
       return (
         <>
-          <ReactMarkdown>{content}</ReactMarkdown>
+          <div className="markdown-content">
+            <ReactMarkdown components={{
+              img: () => null // Prevent rendering images from markdown content
+            }}>
+              {content}
+            </ReactMarkdown>
+          </div>
           <div className="generated-image-container">
             <img 
               src={imageUrl} 
@@ -62,18 +68,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       );
     }
     
-    // Check for pollinations.ai URLs in the content
-    const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
-    if (pollinationsRegex.test(content)) {
-      // Replace pollinations URLs with image tags
-      const processedContent = content.replace(
-        pollinationsRegex, 
-        (match) => `![Generated Image](${match})`
-      );
-      return <ReactMarkdown>{processedContent}</ReactMarkdown>;
-    }
-    
-    // Regular content
+    // Regular content with markdown rendering
     return <ReactMarkdown>{content}</ReactMarkdown>;
   };
 

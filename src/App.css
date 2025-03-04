@@ -1227,19 +1227,35 @@ code {
 }
 
 /* Responsive Styles */
+@media (max-width: 1024px) {
+  .message {
+    max-width: 85%;
+  }
+  
+  .messages-container {
+    padding: var(--spacing-md);
+  }
+  
+  .message-content {
+    font-size: 0.95rem;
+  }
+}
+
 @media (max-width: 768px) {
   .app {
     flex-direction: column;
   }
   
   .sidebar-container {
-    position: absolute;
+    position: fixed;
     height: 100%;
     z-index: 100;
+    width: 280px;
   }
   
   .sidebar {
     width: 100%;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.2);
   }
   
   .sidebar.collapsed {
@@ -1248,14 +1264,28 @@ code {
   
   .main-content {
     width: 100%;
+    margin-left: 0;
   }
   
   .modal {
     width: 95%;
+    max-height: 80vh;
   }
   
   .message {
-    max-width: 95%;
+    max-width: 90%;
+  }
+  
+  .message-input-container {
+    padding: var(--spacing-sm);
+  }
+  
+  .chat-header {
+    padding: var(--spacing-md);
+  }
+  
+  .menu-toggle {
+    display: flex !important;
   }
 }
 
@@ -1263,6 +1293,7 @@ code {
   :root {
     --spacing-md: 12px;
     --spacing-lg: 16px;
+    --font-size-md: 0.9rem;
   }
   
   .message-avatar {
@@ -1271,8 +1302,14 @@ code {
     font-size: 1rem;
   }
   
+  .message {
+    gap: var(--spacing-sm);
+    max-width: 95%;
+  }
+  
   .message-content {
     padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.9rem;
   }
   
   .chat-title h2 {
@@ -1281,6 +1318,67 @@ code {
   
   .empty-state h2 {
     font-size: var(--font-size-xl);
+  }
+  
+  .message-input {
+    padding: var(--spacing-sm);
+    font-size: 0.9rem;
+    min-height: 40px;
+    max-height: 120px;
+  }
+  
+  .send-button {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .icon {
+    width: 18px;
+    height: 18px;
+  }
+  
+  .generated-image {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* Portrait Mode Optimizations */
+@media (max-height: 768px) {
+  .messages-container {
+    padding-top: var(--spacing-sm);
+    padding-bottom: var(--spacing-sm);
+  }
+  
+  .message-input-container {
+    padding: var(--spacing-sm);
+  }
+  
+  .message-input {
+    max-height: 100px;
+  }
+}
+
+/* Landscape Mode Optimizations */
+@media (max-height: 480px) and (orientation: landscape) {
+  .chat-header {
+    padding: var(--spacing-sm);
+  }
+  
+  .messages-container {
+    padding: var(--spacing-sm);
+  }
+  
+  .message-input-container {
+    padding: var(--spacing-xs);
+  }
+  
+  .message-input {
+    max-height: 80px;
+  }
+  
+  .sidebar-container {
+    max-width: 240px;
   }
 }
 
@@ -1359,78 +1457,142 @@ code {
   border: 1px solid rgba(75, 85, 99, 0.3); /* Dark mode border */
 }
 
-/* Markdown Styling */
+/* Enhanced Markdown Styling */
 .message-content h1, 
 .message-content h2, 
 .message-content h3, 
 .message-content h4, 
 .message-content h5, 
-.message-content h6 {
+.message-content h6,
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
   margin-top: var(--spacing-lg);
   margin-bottom: var(--spacing-sm);
   color: inherit;
+  line-height: var(--line-height-tight);
 }
 
-.message-content h1 { font-size: var(--font-size-2xl); }
-.message-content h2 { font-size: var(--font-size-xl); }
-.message-content h3 { font-size: var(--font-size-lg); }
+.message-content h1,
+.markdown-content h1 { font-size: var(--font-size-2xl); }
 
-.message-content p {
+.message-content h2,
+.markdown-content h2 { font-size: var(--font-size-xl); }
+
+.message-content h3,
+.markdown-content h3 { font-size: var(--font-size-lg); }
+
+.message-content p,
+.markdown-content p {
   margin-bottom: var(--spacing-md);
+  line-height: var(--line-height-relaxed);
 }
 
 .message-content ul, 
-.message-content ol {
+.message-content ol,
+.markdown-content ul,
+.markdown-content ol {
   margin-bottom: var(--spacing-md);
   padding-left: var(--spacing-lg);
 }
 
-.message-content li {
+.message-content li,
+.markdown-content li {
   margin-bottom: var(--spacing-xs);
+  line-height: var(--line-height-normal);
 }
 
-.message-content a {
+.message-content a,
+.markdown-content a {
   color: var(--primary-color);
   text-decoration: none;
   transition: all var(--transition-fast);
+  font-weight: var(--font-weight-medium);
 }
 
-.message-content a:hover {
+.message-content a:hover,
+.markdown-content a:hover {
   text-decoration: underline;
+  color: var(--primary-dark);
 }
 
-.message.user .message-content a {
+.message.user .message-content a,
+.message.user .markdown-content a {
   color: white;
   text-decoration: underline;
 }
 
-.message-content blockquote {
+.message-content blockquote,
+.markdown-content blockquote {
   border-left: 3px solid var(--border-color);
   padding-left: var(--spacing-md);
   margin: var(--spacing-md) 0;
   color: var(--text-secondary);
   font-style: italic;
+  background-color: rgba(0, 0, 0, 0.02);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
 }
 
-.message-content table {
+.message-content table,
+.markdown-content table {
   width: 100%;
   border-collapse: collapse;
   margin: var(--spacing-md) 0;
+  background-color: var(--input-bg);
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .message-content th, 
-.message-content td {
-  padding: var(--spacing-sm);
+.message-content td,
+.markdown-content th,
+.markdown-content td {
+  padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--border-color);
   text-align: left;
 }
 
-.message-content th {
+.message-content th,
+.markdown-content th {
   background-color: rgba(0, 0, 0, 0.05);
   font-weight: var(--font-weight-semibold);
 }
 
-.dark-mode .message-content th {
+.dark-mode .message-content th,
+.dark-mode .markdown-content th {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.markdown-content {
+  margin-bottom: var(--spacing-md);
+}
+
+.message-content code,
+.markdown-content code {
+  padding: 0.2em 0.4em;
+  font-size: var(--font-size-sm);
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+}
+
+.message-content pre,
+.markdown-content pre {
+  background-color: rgba(0, 0, 0, 0.05);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: var(--spacing-md) 0;
+}
+
+.dark-mode .message-content code,
+.dark-mode .markdown-content code,
+.dark-mode .message-content pre,
+.dark-mode .markdown-content pre {
   background-color: rgba(255, 255, 255, 0.05);
 }
 

@@ -72,7 +72,9 @@ function App() {
     });
     
     const prompt = `You are a helpful assistant with web search and image generation capabilities. The current date is ${formattedDate}. 
-    
+    For image generation, you can create images by using the generateImage function with a descriptive prompt.
+The image will be generated using Pollinations.ai and displayed directly in the chat.
+
 When performing web searches, you can customize the search parameters based on the user's query:
 - search_depth: Use 'advanced' for complex queries requiring in-depth information, 'basic' for simple queries (default: basic)
 - max_results: Number of results to return, 1-20 (default: 5)
@@ -80,9 +82,6 @@ When performing web searches, you can customize the search parameters based on t
 - include_answer: Set to true to include an AI-generated summary of the search results (default: true)
 - include_images: Set to true to include image search results (useful for visual topics)
 - include_domains/exclude_domains: Arrays of specific domains to include or exclude
-
-For image generation, you can create images by using the generateImage function with a descriptive prompt.
-The image will be generated using Pollinations.ai and displayed directly in the chat.
 
 Guidelines for choosing parameters:
 - For recent news or events: use time_range='day' or 'week' and max_results=10
