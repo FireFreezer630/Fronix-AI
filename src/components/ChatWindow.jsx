@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
+import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
 
 export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation }) => {
@@ -108,6 +108,15 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
           </div>
           <div className="message-content">
             {processMessageContent(msg.content, msg.imageUrl)}
+            {msg.role === 'assistant' && (
+              <button
+                className="copy-button"
+                onClick={() => navigator.clipboard.writeText(msg.content)}
+                title="Copy to clipboard"
+              >
+                <ClipboardDocumentIcon className="icon" />
+              </button>
+            )}
           </div>
         </div>
       );

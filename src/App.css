@@ -781,6 +781,36 @@ code {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--glass-border);
+  position: relative;
+}
+
+.copy-button {
+  position: absolute;
+  bottom: var(--spacing-sm);
+  right: var(--spacing-sm);
+  padding: var(--spacing-xs);
+  border: none;
+  background-color: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+}
+
+.copy-button:hover {
+  opacity: 1;
+  background-color: var(--hover-color);
+  transform: scale(1.1);
+}
+
+.copy-button .icon {
+  width: 16px;
+  height: 16px;
+  margin-right: 0;
 }
 
 .message.user .message-content {
