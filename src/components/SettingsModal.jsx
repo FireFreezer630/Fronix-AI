@@ -130,7 +130,7 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
               >
                 <option value="gpt-4o">GPT-4o</option>
                 <option value="gpt-4o-mini">GPT-4o-mini</option>
-                <option value="Phi-4">Phi-4</option>
+                <option value="Phi-4-multimodal-instruct">Phi-4-multimodal-instruct</option>
                 <option value="Llama-3.3-70B-Instruct">Llama-3.3-70B-Instruct</option>
               </select>
               <p className="form-help">Select the AI model to use for generating responses.</p>
