@@ -1,19 +1,38 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon } from '@heroicons/react/24/solid';
+import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
 
 export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation }) => {
   const [message, setMessage] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const endOfMessagesRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const textareaRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (message.trim() && !isLoading) {
-      onSendMessage(message);
+    if ((message.trim() || selectedFile) && !isLoading) {
+      onSendMessage(message, selectedFile);
       setMessage('');
+      setSelectedFile(null);
     }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedFile(file);
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current.click();
+  };
+
+  const removeSelectedFile = () => {
+    setSelectedFile(null);
+    fileInputRef.current.value = '';
   };
 
   // Auto-scroll to bottom when new messages arrive
@@ -103,9 +122,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       
       return (
         <div key={msg.timestamp || index} className={`message ${msg.role}`}>
-          <div className="message-avatar">
-            {msg.role === 'user' ? '👤' : msg.role === 'assistant' ? '🤖' : '⚠️'}
-          </div>
+          
           <div className="message-content">
             {processMessageContent(msg.content, msg.imageUrl)}
             {msg.role === 'assistant' && (
@@ -140,31 +157,70 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       </div>
       
       <form className="message-input-container glassmorphic-card" onSubmit={handleSubmit}>
-        <textarea
-          ref={textareaRef}
-          className="message-input"
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type a message, ask a question, or request an image..."
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit(e);
-            }
-          }}
-        />
-        <button
-          type="submit"
-          className="send-button"
-          disabled={!message.trim() || isLoading}
-          aria-label="Send message"
-        >
-          {isLoading ? (
-            <ArrowPathIcon className="icon spinning" />
-          ) : (
-            <PaperAirplaneIcon className="icon" />
-          )}
-        </button>
+        {selectedFile && (
+          <div className="selected-file">
+            <span className="file-name">
+              {selectedFile.type.includes('image') ? (
+                <PhotoIcon className="file-icon" />
+              ) : (
+                <DocumentIcon className="file-icon" />
+              )}
+              {selectedFile.name}
+            </span>
+            <button 
+              type="button" 
+              className="remove-file-btn" 
+              onClick={removeSelectedFile}
+              aria-label="Remove file"
+            >
+              ×
+            </button>
+          </div>
+        )}
+        <div className="input-row">
+          <textarea
+            ref={textareaRef}
+            className="message-input"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type a message, ask a question, or upload a file..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
+          />
+          <div className="input-actions">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+              accept="image/*,.pdf"
+            />
+            <button
+              type="button"
+              className="upload-button"
+              onClick={triggerFileInput}
+              aria-label="Upload file"
+            >
+              <PhotoIcon className="icon-sm" />
+            </button>
+            <button
+              type="submit"
+              className="send-button"
+              disabled={(!message.trim() && !selectedFile) || isLoading}
+              aria-label="Send message"
+            >
+              {isLoading ? (
+                <ArrowPathIcon className="icon spinning" />
+              ) : (
+                <PaperAirplaneIcon className="icon" />
+              )}
+            </button>
+          </div>
+        </div>
       </form>
     </div>
   );

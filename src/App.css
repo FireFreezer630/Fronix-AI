@@ -1,4 +1,5 @@
 /* App.css - Modern, Aesthetic, Minimal, Clean UI with Neumorphic and Glassmorphic Elements */
+/* App.css - Modern, Aesthetic, Minimal, Clean UI with Neumorphic and Glassmorphic Elements */
 
 /* Root Variables - Light Mode */
 :root {
@@ -1638,3 +1639,268 @@ code {
 .message-content img:hover {
   transform: scale(1.02);
 }
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Root Variables - Light Mode */
+:root {
+  --primary-color: #4a6fa5;
+  --primary-light: #6b8cbe;
+  --primary-dark: #345888;
+  --bg-color: #f0f2f5;
+  --sidebar-bg: rgba(255, 255, 255, 0.65);
+  --input-bg: rgba(255, 255, 255, 0.7);
+  --text-color: #2d3436;
+  --text-secondary: #636e72;
+  --border-color: rgba(224, 224, 224, 0.5);
+  --hover-color: rgba(241, 242, 246, 0.7);
+  --shadow-color: rgba(0, 0, 0, 0.05);
+  --error-color: #e74c3c;
+  --success-color: #00b894;
+  --info-color: #0984e3;
+  --glass-bg: rgba(255, 255, 255, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-shadow: rgba(0, 0, 0, 0.1);
+
+  /* Neumorphic Specific */
+  --neu-light: #ffffff;
+  --neu-dark: rgba(209, 217, 230, 0.8);
+  --neu-flat: #f0f2f5;
+  --neu-shadow-distance: 6px;
+
+  /* Spacing */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+
+  /* Border Radius */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+  
+  /* Typography */
+  --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  --font-secondary: 'DM Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Roboto Mono', monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.75;
+  --letter-spacing-tight: -0.025em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.025em;
+}
+
+/* Dark Mode Variables */
+.dark-mode {
+  --primary-color: #5a8dd6;
+  --primary-light: #7ba7e8;
+  --primary-dark: #3d6fb3;
+  --bg-color: #1a1d21;
+  --sidebar-bg: rgba(32, 34, 37, 0.65);
+  --input-bg: rgba(44, 47, 51, 0.7);
+  --text-color: #f5f6fa;
+  --text-secondary: #a4b0be;
+  --border-color: rgba(64, 68, 75, 0.5);
+  --hover-color: rgba(47, 49, 54, 0.7);
+  --shadow-color: rgba(0, 0, 0, 0.2);
+  --glass-bg: rgba(32, 34, 37, 0.65);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: rgba(0, 0, 0, 0.3);
+
+  /* Neumorphic Specific for Dark Mode */
+  --neu-light: #272a30;
+  --neu-dark: #141618;
+  --neu-flat: #1a1d21;
+  --neu-shadow-distance: 5px;
+}
+
+/* Base Styles */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-primary);
+  color: var(--text-color);
+  background-color: var(--bg-color);
+  line-height: var(--line-height-normal);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-normal);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* App Layout */
+.app {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Chat Header - Updated for Fixed Position */
+.chat-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 16px var(--glass-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: all var(--transition-normal);
+}
+
+/* Messages Container - Updated with Top Spacing */
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: calc(var(--spacing-xl) * 2) var(--spacing-lg) var(--spacing-lg) var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* Updated System Message Styling */
+.message.system {
+  align-self: center;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  max-width: 80%;
+  animation: fadeIn 0.3s ease;
+  background: none;
+  border-left: 2px solid var(--text-secondary);
+  color: var(--text-secondary);
+}
+
+/* System Message Types - More Subtle */
+.message.system[content^="Uploading"],
+.message.system[content^="Searching"],
+.message.system[content^="Generating"] {
+  color: var(--text-secondary);
+  background: none;
+  border-left: 2px solid var(--info-color);
+  font-style: italic;
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin: var(--spacing-sm) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.message.system[content^="Error"] {
+  border-left: 2px solid var(--error-color);
+  color: var(--error-color);
+}
+
+/* File Upload UI */
+.selected-file {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm);
+  background-color: var(--hover-color);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  color: var(--text-color);
+  flex: 1;
+}
+
+.file-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--text-secondary);
+}
+
+.remove-file-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 2px 6px;
+  border-radius: 50%;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-file-btn:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+  color: var(--error-color);
+}
+
+.input-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.input-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  align-items: flex-end;
+}
+
+.upload-button {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  transition: all var(--transition-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  width: 40px;
+}
+
+.upload-button:hover {
+  background-color: var(--hover-color);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+/* Rest of your existing styles... */

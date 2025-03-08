@@ -170,14 +170,60 @@ Always choose parameters that best serve the user's information needs.`;
     ));
   };
 
-  const sendMessage = async (messageContent) => {
-    if (!messageContent.trim()) return;
+  const sendMessage = async (messageContent, file) => {
+    if (!messageContent.trim() && !file) return;
     if (!apiSettings.apiKey) {
       setIsSettingsOpen(true);
       return;
     }
 
-    const userMessage = { role: 'user', content: messageContent, timestamp: Date.now() };
+    let userMessage = { role: 'user', content: messageContent, timestamp: Date.now() };
+    
+    // Handle file upload if present
+    if (file) {
+      try {
+        // Show uploading message
+        const uploadingMessage = { role: 'system', content: `Uploading ${file.name}...`, timestamp: Date.now() };
+        setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
+          ...conv,
+          messages: [...conv.messages, uploadingMessage]
+        } : conv));
+        
+        // Convert file to base64
+        const fileBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(file);
+        });
+        
+        // Update user message with file information
+        const fileType = file.type.includes('image') ? 'image' : 'document';
+        userMessage = { 
+          role: 'user', 
+          content: messageContent ? messageContent : `[Uploaded ${fileType}: ${file.name}]`, 
+          timestamp: Date.now(),
+          file: {
+            name: file.name,
+            type: file.type,
+            data: fileBase64
+          }
+        };
+        
+        // Remove the uploading message
+        setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
+          ...conv,
+          messages: conv.messages.filter(msg => !msg.content.startsWith('Uploading'))
+        } : conv));
+      } catch (error) {
+        console.error('Error processing file:', error);
+        const errorMessage = { role: 'system', content: `Error uploading file: ${error.message}`, timestamp: Date.now() };
+        setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
+          ...conv,
+          messages: [...conv.messages.filter(msg => !msg.content.startsWith('Uploading')), errorMessage]
+        } : conv));
+        return;
+      }
+    }
     const isFirstMessage = currentConversation.messages.length === 0;
     let newConversation = {
       ...currentConversation,
@@ -191,7 +237,25 @@ Always choose parameters that best serve the user's information needs.`;
     setIsLoading(true);
     let messages = [
       { role: 'system', content: systemPrompt }, // Use dynamic system prompt here
-      ...newConversation.messages.map(msg => ({ role: msg.role, content: msg.content }))
+      ...newConversation.messages.map(msg => {
+        // Include file data if present
+        if (msg.file) {
+          return {
+            role: msg.role,
+            content: [
+              { type: 'text', text: msg.content },
+              { 
+                type: msg.file.type.includes('image') ? 'image_url' : 'file_url', 
+                [msg.file.type.includes('image') ? 'image_url' : 'file_url']: {
+                  url: msg.file.data,
+                  detail: msg.file.type.includes('image') ? 'high' : 'low'
+                }
+              }
+            ]
+          };
+        }
+        return { role: msg.role, content: msg.content };
+      })
     ];
 
     try {
