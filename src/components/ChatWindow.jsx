@@ -1,8 +1,9 @@
+// src/components/ChatWindow.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
 
-export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation }) => {
+export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation, settings }) => {
   const [message, setMessage] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const endOfMessagesRef = useRef(null);
@@ -122,7 +123,6 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       
       return (
         <div key={msg.timestamp || index} className={`message ${msg.role}`}>
-          
           <div className="message-content">
             {processMessageContent(msg.content, msg.imageUrl)}
             {msg.role === 'assistant' && (
@@ -178,19 +178,6 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
           </div>
         )}
         <div className="input-row">
-          <textarea
-            ref={textareaRef}
-            className="message-input"
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type a message, ask a question, or upload a file..."
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-          />
           <div className="input-actions">
             <input
               type="file"
@@ -207,6 +194,21 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
             >
               <PhotoIcon className="icon-sm" />
             </button>
+          </div>
+          <textarea
+            ref={textareaRef}
+            className="message-input"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type a message, ask a question, or upload a file..."
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
+              }
+            }}
+          />
+          <div className="input-actions">
             <button
               type="submit"
               className="send-button"

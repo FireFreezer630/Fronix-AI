@@ -1,6 +1,46 @@
 import OpenAI from 'openai';
 import axios from 'axios';
 
+export const generateChatName = async (messages, settings) => {
+  try {
+    const client = new OpenAI({
+      baseURL: settings.endpoint || defaultEndpoint,
+      apiKey: settings.apiKey || defaultOpenAIKey,
+      dangerouslyAllowBrowser: true,
+    });
+
+    // Take first 5 exchanges or fewer
+    const initialMessages = messages.slice(0, 10);
+    
+    // Create the summarization prompt based on message count
+    const messageCount = messages.length;
+    const prompt = [
+      {
+        role: "system",
+        content: "You are a highly efficient chat summarizer. Create a concise, relevant title (5 words or fewer) that captures the conversation theme. For first message, focus on the initial topic. For subsequent messages (2-3), refine the title based on how the conversation evolves, possibly generating a completely different title if the topic shifts significantly."
+      },
+      {
+        role: "user",
+        content: `Please summarize this ${messageCount === 1 ? 'initial message' : 'conversation'} in 5 or fewer words:\n${initialMessages.map(m => `${m.role}: ${m.content}`).join('\n')}`
+      }
+    ];
+
+    const response = await client.chat.completions.create({
+      messages: prompt,
+      temperature: 0.7,
+      max_tokens: 30,
+      model: "Phi-4",
+    });
+
+    const chatName = response.choices[0].message.content.trim();
+    return chatName;
+  } catch (error) {
+    console.error('Error in generateChatName:', error);
+    throw new Error(error.message || 'Failed to generate chat name');
+  }
+};
+
+
 // Get environment variables with fallbacks
 const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com';
 const defaultOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';

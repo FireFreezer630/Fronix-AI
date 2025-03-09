@@ -1873,12 +1873,21 @@ body {
   display: flex;
   gap: var(--spacing-sm);
   width: 100%;
+  align-items: flex-end;
 }
 
 .input-actions {
   display: flex;
   gap: var(--spacing-sm);
   align-items: flex-end;
+}
+
+.input-actions:first-child {
+  margin-right: 0;
+}
+
+.input-actions:last-child {
+  margin-left: var(--spacing-xs);
 }
 
 .upload-button {
@@ -1894,6 +1903,7 @@ body {
   justify-content: center;
   height: 40px;
   width: 40px;
+  margin-right: var(--spacing-xs);
 }
 
 .upload-button:hover {

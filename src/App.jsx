@@ -63,7 +63,6 @@ function App() {
   
   // Set system prompt with current date
   useEffect(() => {
-    // Get current date locally instead of relying on external API
     const today = new Date();
     const formattedDate = today.toLocaleDateString('en-US', {
       month: 'long',
@@ -164,10 +163,16 @@ Always choose parameters that best serve the user's information needs.`;
     }
   };
 
-  const updateConversationTitle = (id, title) => {
-    setConversations(conversations.map(conv =>
-      conv.id === id ? { ...conv, title } : conv
-    ));
+  const updateConversationTitle = async (id, title) => {
+    try {
+      setConversations(prevConversations =>
+        prevConversations.map(conv =>
+          conv.id === id ? { ...conv, title } : conv
+        )
+      );
+    } catch (error) {
+      console.error('Error updating conversation title:', error);
+    }
   };
 
   const sendMessage = async (messageContent, file) => {
@@ -179,24 +184,20 @@ Always choose parameters that best serve the user's information needs.`;
 
     let userMessage = { role: 'user', content: messageContent, timestamp: Date.now() };
     
-    // Handle file upload if present
     if (file) {
       try {
-        // Show uploading message
         const uploadingMessage = { role: 'system', content: `Uploading ${file.name}...`, timestamp: Date.now() };
         setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
           ...conv,
           messages: [...conv.messages, uploadingMessage]
         } : conv));
         
-        // Convert file to base64
         const fileBase64 = await new Promise((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result);
           reader.readAsDataURL(file);
         });
         
-        // Update user message with file information
         const fileType = file.type.includes('image') ? 'image' : 'document';
         userMessage = { 
           role: 'user', 
@@ -209,7 +210,6 @@ Always choose parameters that best serve the user's information needs.`;
           }
         };
         
-        // Remove the uploading message
         setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
           ...conv,
           messages: conv.messages.filter(msg => !msg.content.startsWith('Uploading'))
@@ -236,9 +236,8 @@ Always choose parameters that best serve the user's information needs.`;
 
     setIsLoading(true);
     let messages = [
-      { role: 'system', content: systemPrompt }, // Use dynamic system prompt here
+      { role: 'system', content: systemPrompt },
       ...newConversation.messages.map(msg => {
-        // Include file data if present
         if (msg.file) {
           return {
             role: msg.role,
@@ -263,7 +262,6 @@ Always choose parameters that best serve the user's information needs.`;
       if (response.finish_reason === 'tool_calls') {
         const toolCall = response.message.tool_calls[0];
         
-        // Handle web search
         if (toolCall.type === 'function' && toolCall.function.name === 'performWebSearch') {
           const functionArgs = JSON.parse(toolCall.function.arguments);
           const searchingMessage = { role: 'system', content: 'Searching the web...', timestamp: Date.now() };
@@ -272,17 +270,12 @@ Always choose parameters that best serve the user's information needs.`;
             messages: [...conv.messages, searchingMessage]
           } : conv));
 
-          // Extract search parameters from functionArgs
           const { query, ...searchOptions } = functionArgs;
           
-          // Log search parameters for debugging
           console.log('Web search query:', query);
           console.log('Web search options:', searchOptions);
           
-          // Create a description of the search parameters for the user
           let searchDescription = `Searching for: "${query}"`;
-          
-          // Add search parameters details
           const searchParams = [];
           
           if (searchOptions.search_depth === 'advanced') {
@@ -320,7 +313,6 @@ Always choose parameters that best serve the user's information needs.`;
             searchDescription += ` (${searchParams.join(', ')})`;
           }
           
-          // Update the searching message with the description
           const updatedSearchingMessage = { 
             role: 'system', 
             content: searchDescription, 
@@ -346,7 +338,6 @@ Always choose parameters that best serve the user's information needs.`;
             messages: [...conv.messages.filter(msg => msg.content.startsWith('Searching')), assistantMessage]
           } : conv));
         }
-        // Handle image generation
         else if (toolCall.type === 'function' && toolCall.function.name === 'generateImage') {
           const functionArgs = JSON.parse(toolCall.function.arguments);
           const generatingMessage = { 
@@ -370,15 +361,13 @@ Always choose parameters that best serve the user's information needs.`;
           messages = [...messages, response.message, toolResponse];
           const finalResponse = await fetchChatCompletion(messages, apiSettings);
           
-          // Process the response to convert image URLs to markdown
           let processedContent = finalResponse.message.content;
           
-          // Create a message with the processed content
           const assistantMessage = { 
             role: 'assistant', 
             content: processedContent, 
             timestamp: Date.now(),
-            imageUrl: imageUrl // Store the image URL directly in the message
+            imageUrl: imageUrl
           };
           
           setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
@@ -387,10 +376,8 @@ Always choose parameters that best serve the user's information needs.`;
           } : conv));
         }
       } else {
-        // Process regular text responses
         let processedContent = response.message.content;
         
-        // Check for pollinations.ai URLs and convert them to markdown image syntax
         const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
         processedContent = processedContent.replace(pollinationsRegex, (match) => {
           return `![Generated Image](${match})`;
@@ -418,11 +405,9 @@ Always choose parameters that best serve the user's information needs.`;
     }
   };
 
-  // Start editing the title
   const startEditing = () => {
     setEditedTitle(currentConversation.title);
     setIsEditing(true);
-    // Focus the input after it renders
     setTimeout(() => {
       if (titleInputRef.current) {
         titleInputRef.current.focus();
@@ -431,7 +416,6 @@ Always choose parameters that best serve the user's information needs.`;
     }, 10);
   };
 
-  // Save the edited title
   const saveTitle = () => {
     if (editedTitle.trim()) {
       updateConversationTitle(currentConversation.id, editedTitle.trim());
@@ -441,7 +425,6 @@ Always choose parameters that best serve the user's information needs.`;
     setIsEditing(false);
   };
 
-  // Handle key press in title input
   const handleTitleKeyDown = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -454,6 +437,47 @@ Always choose parameters that best serve the user's information needs.`;
 
   const toggleSidebar = () => {
     setIsSidebarCollapsed(!isSidebarCollapsed);
+  };
+
+  // Auto chat renaming logic: Rename when conversation has exactly 2 messages and title is still 'New Chat'
+  useEffect(() => {
+    const currentConv = conversations.find(conv => conv.id === currentConversationId);
+    if (currentConv && currentConv.title === 'New Chat' && currentConv.messages.length === 2) {
+      renameConversation(currentConv.id);
+    }
+  }, [conversations, currentConversationId]);
+
+  // Function to rename conversation using mistral-small model
+  const renameConversation = async (conversationId) => {
+    const currentConv = conversations.find(conv => conv.id === conversationId);
+    if (!currentConv || currentConv.messages.length < 2) return;
+
+    const summaryMessages = [
+      {
+        role: 'system',
+        content: 'Summarize the following conversation into a short title (max 5 words):'
+      },
+      ...currentConv.messages.slice(0, 2)
+    ];
+
+    try {
+      const response = await fetchChatCompletion(summaryMessages, {
+        ...apiSettings,
+        modelName: 'Mistral-small', // Corrected to lowercase
+        temperature: 0.8, // More deterministic output
+        maxTokens: 20 // Short output for a title
+      });
+
+      const newTitle = response.message.content.trim();
+      if (newTitle) {
+        updateConversationTitle(conversationId, newTitle);
+        console.log('Conversation renamed to:', newTitle);
+      } else {
+        console.warn('Generated title is empty');
+      }
+    } catch (error) {
+      console.error('Error renaming conversation:', error);
+    }
   };
 
   return (
@@ -505,6 +529,7 @@ Always choose parameters that best serve the user's information needs.`;
           onSendMessage={sendMessage}
           isLoading={isLoading}
           onRenameConversation={updateConversationTitle}
+          settings={apiSettings}
         />
       </main>
       {isSettingsOpen && (
