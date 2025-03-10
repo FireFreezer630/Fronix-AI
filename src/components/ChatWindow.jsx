@@ -17,6 +17,9 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       onSendMessage(message, selectedFile);
       setMessage('');
       setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -63,7 +66,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
   }, [conversation]);
 
   // Process message content to handle special formats
-  const processMessageContent = (content, imageUrl, reasoningData) => {
+  const processMessageContent = (content, imageUrl, reasoningData, uploadedImage) => {
     // Check if the message has reasoning data
     if (reasoningData) {
       return (
@@ -114,6 +117,25 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
         </>
       );
     }
+
+    // Check if the message has an uploaded image
+    if (uploadedImage) {
+      return (
+        <>
+          <div className="markdown-content">
+            <ReactMarkdown>{content}</ReactMarkdown>
+          </div>
+          <div className="uploaded-image-container">
+            <img 
+              src={uploadedImage} 
+              alt="Uploaded"
+              className="generated-image"
+              loading="lazy"
+            />
+          </div>
+        </>
+      );
+    }
     
     // Regular content with markdown rendering
     return <ReactMarkdown>{content}</ReactMarkdown>;
@@ -151,7 +173,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       return (
         <div key={msg.timestamp || index} className={`message ${msg.role} ${msg.reasoningData ? 'with-reasoning' : ''}`}>
           <div className="message-content">
-            {processMessageContent(msg.content, msg.imageUrl, msg.reasoningData)}
+            {processMessageContent(msg.content, msg.imageUrl, msg.reasoningData, msg.uploadedImage)}
             {msg.role === 'assistant' && (
               <button
                 className="copy-button"
@@ -165,6 +187,18 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
         </div>
       );
     });
+  };
+
+  const renderImagePreview = (file) => {
+    if (!file || !file.type.startsWith('image/')) return null;
+    return (
+      <img 
+        src={URL.createObjectURL(file)} 
+        alt="Preview" 
+        className="image-preview"
+        onLoad={(e) => URL.revokeObjectURL(e.target.src)} // Clean up the object URL
+      />
+    );
   };
 
   return (
@@ -186,22 +220,34 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       <form className="message-input-container glassmorphic-card" onSubmit={handleSubmit}>
         {selectedFile && (
           <div className="selected-file">
-            <span className="file-name">
-              {selectedFile.type.includes('image') ? (
-                <PhotoIcon className="file-icon" />
-              ) : (
-                <DocumentIcon className="file-icon" />
-              )}
-              {selectedFile.name}
-            </span>
-            <button 
-              type="button" 
-              className="remove-file-btn" 
-              onClick={removeSelectedFile}
-              aria-label="Remove file"
-            >
-              ×
-            </button>
+            {selectedFile.type.startsWith('image/') ? (
+              <>
+                {renderImagePreview(selectedFile)}
+                <button 
+                  type="button" 
+                  className="remove-file-btn floating"
+                  onClick={removeSelectedFile}
+                  aria-label="Remove file"
+                >
+                  ×
+                </button>
+              </>
+            ) : (
+              <div className="file-header">
+                <span className="file-name">
+                  <DocumentIcon className="file-icon" />
+                  {selectedFile.name}
+                </span>
+                <button 
+                  type="button" 
+                  className="remove-file-btn"
+                  onClick={removeSelectedFile}
+                  aria-label="Remove file"
+                >
+                  ×
+                </button>
+              </div>
+            )}
           </div>
         )}
         <div className="input-row">

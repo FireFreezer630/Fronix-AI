@@ -311,6 +311,7 @@ Remember to always choose parameters and approaches that best serve the user's s
         });
         
         const fileType = file.type.includes('image') ? 'image' : 'document';
+        const imageUrl = fileType === 'image' ? fileBase64 : null;
         userMessage = { 
           role: 'user', 
           content: messageContent ? messageContent : `[Uploaded ${fileType}: ${file.name}]`, 
@@ -319,7 +320,8 @@ Remember to always choose parameters and approaches that best serve the user's s
             name: file.name,
             type: file.type,
             data: fileBase64
-          }
+          },
+          uploadedImage: imageUrl
         };
         
         setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
@@ -353,17 +355,9 @@ Remember to always choose parameters and approaches that best serve the user's s
         if (msg.file) {
           return {
             role: msg.role,
-            content: [
-              { type: 'text', text: msg.content },
-              { 
-                type: msg.file.type.includes('image') ? 'image_url' : 'file_url', 
-                [msg.file.type.includes('image') ? 'image_url' : 'file_url']: {
-                  url: msg.file.data,
-                  detail: msg.file.type.includes('image') ? 'high' : 'low'
-                }
-              }
-            ]
-          };
+          content: msg.content,
+          uploadedImage: msg.uploadedImage
+        };
         }
         return { role: msg.role, content: msg.content };
       })
