@@ -10,7 +10,8 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
     modelName: settings.modelName || 'gpt-4o',
     temperature: settings.temperature || 0.7,
     maxTokens: settings.maxTokens || 8000,
-    darkMode: settings.darkMode || false
+    darkMode: settings.darkMode || false,
+    usePollinationsAi: settings.usePollinationsAi || false
   });
 
   // Update form data when environment variables change
@@ -46,6 +47,14 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
     onSave(updatedSettings);
   };
 
+  const togglePollinationsAi = () => {
+    const newUsePollinationsAi = !formData.usePollinationsAi;
+    setFormData({
+      ...formData,
+      usePollinationsAi: newUsePollinationsAi
+    });
+  };
+
   return (
     <div className="modal-overlay">
       <div className="modal glassmorphic-card">
@@ -76,19 +85,92 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
             </div>
             
             <div className="form-group">
-              <label className="form-label" htmlFor="apiKey">API Key*</label>
-              <input
-                className="form-input neumorphic"
-                type="password"
-                id="apiKey"
-                name="apiKey"
-                value={formData.apiKey}
-                onChange={handleChange}
-                required
-                placeholder="Enter your API key"
-              />
-              <p className="form-help">Your API key is stored locally and never sent to our servers. You can also set this in the .env file.</p>
+              <div className="toggle-container">
+                <label className="form-label">API Provider</label>
+                <div className="toggle-switch-container">
+                  <span className={`toggle-label ${!formData.usePollinationsAi ? 'active' : ''}`}>Azure</span>
+                  <label className="toggle-switch">
+                    <input
+                      type="checkbox"
+                      name="usePollinationsAi"
+                      checked={formData.usePollinationsAi}
+                      onChange={togglePollinationsAi}
+                    />
+                    <span className="toggle-slider"></span>
+                  </label>
+                  <span className={`toggle-label ${formData.usePollinationsAi ? 'active' : ''}`}>Pollinations.ai</span>
+                </div>
+                <p className="form-help">Switch between Azure API and Pollinations.ai for text generation.</p>
+              </div>
             </div>
+            
+            {!formData.usePollinationsAi && (
+              <>
+                <div className="form-group">
+                  <label className="form-label" htmlFor="apiKey">API Key*</label>
+                  <input
+                    className="form-input neumorphic"
+                    type="password"
+                    id="apiKey"
+                    name="apiKey"
+                    value={formData.apiKey}
+                    onChange={handleChange}
+                    required={!formData.usePollinationsAi}
+                    placeholder="Enter your API key"
+                  />
+                  <p className="form-help">Your API key is stored locally and never sent to our servers. You can also set this in the .env file.</p>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label" htmlFor="endpoint">Endpoint URL</label>
+                  <input
+                    className="form-input neumorphic"
+                    type="text"
+                    id="endpoint"
+                    name="endpoint"
+                    value={formData.endpoint}
+                    onChange={handleChange}
+                    placeholder="https://models.inference.ai.azure.com"
+                  />
+                  <p className="form-help">The base URL for API requests. You can also set this in the .env file.</p>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label" htmlFor="modelName">Model Name</label>
+                  <select
+                    className="form-select neumorphic"
+                    id="modelName"
+                    name="modelName"
+                    value={formData.modelName}
+                    onChange={handleChange}
+                  >
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4o-mini">GPT-4o-mini</option>
+                    <option value="Phi-4-multimodal-instruct">Phi-4-multimodal-instruct</option>
+                    <option value="Llama-3.3-70B-Instruct">Llama-3.3-70B-Instruct</option>
+                  </select>
+                  <p className="form-help">Select the AI model to use for generating responses.</p>
+                </div>
+              </>
+            )}
+            
+            {formData.usePollinationsAi && (
+              <div className="form-group">
+                <label className="form-label" htmlFor="pollinationsModel">Pollinations.ai Model</label>
+                <select
+                  className="form-select neumorphic"
+                  id="pollinationsModel"
+                  name="pollinationsModel"
+                  value={formData.pollinationsModel || "openai-large"}
+                  onChange={handleChange}
+                >
+                  <option value="openai-large">openai-large</option>
+                  <option value="openai-reasoning">openai-reasoning</option>
+                  <option value="local-small">local-small</option>
+                </select>
+                <p className="form-help">Select the Pollinations.ai model to use for generating responses.</p>
+              </div>
+            )}
             
             <div className="form-group">
               <label className="form-label" htmlFor="tavilyApiKey">Tavily API Key*</label>
@@ -103,37 +185,6 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
                 placeholder="Enter your Tavily API key"
               />
               <p className="form-help">Required for web search functionality. Get your key from Tavily. You can also set this in the .env file.</p>
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label" htmlFor="endpoint">Endpoint URL</label>
-              <input
-                className="form-input neumorphic"
-                type="text"
-                id="endpoint"
-                name="endpoint"
-                value={formData.endpoint}
-                onChange={handleChange}
-                placeholder="https://models.inference.ai.azure.com"
-              />
-              <p className="form-help">The base URL for API requests. You can also set this in the .env file.</p>
-            </div>
-            
-            <div className="form-group">
-              <label className="form-label" htmlFor="modelName">Model Name</label>
-              <select
-                className="form-select neumorphic"
-                id="modelName"
-                name="modelName"
-                value={formData.modelName}
-                onChange={handleChange}
-              >
-                <option value="gpt-4o">GPT-4o</option>
-                <option value="gpt-4o-mini">GPT-4o-mini</option>
-                <option value="Phi-4-multimodal-instruct">Phi-4-multimodal-instruct</option>
-                <option value="Llama-3.3-70B-Instruct">Llama-3.3-70B-Instruct</option>
-              </select>
-              <p className="form-help">Select the AI model to use for generating responses.</p>
             </div>
             
             <div className="form-group">

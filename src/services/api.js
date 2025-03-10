@@ -8,37 +8,68 @@ const defaultTavilyKey = import.meta.env.VITE_TAVILY_API_KEY || '';
 
 export const generateChatName = async (messages, settings) => {
   try {
-    const client = new OpenAI({
-      baseURL: settings.endpoint || defaultEndpoint,
-      apiKey: settings.apiKey || defaultOpenAIKey,
-      dangerouslyAllowBrowser: true,
-    });
-
-    // Take first 5 exchanges or fewer
-    const initialMessages = messages.slice(0, 10);
-    
-    // Create the summarization prompt based on message count
-    const messageCount = messages.length;
-    const prompt = [
-      {
+    // If Pollinations.ai mode is enabled, use it for generating the chat name
+    if (settings.usePollinationsAi) {
+      // Take first 5 exchanges or fewer
+      const initialMessages = messages.slice(0, 10);
+      
+      // Create system message for the summarizer
+      const systemMessage = {
         role: "system",
-        content: "You are a highly efficient chat summarizer. Create a concise, relevant title (5 words or fewer) that captures the conversation theme. For first message, focus on the initial topic. For subsequent messages (2-3), refine the title based on how the conversation evolves, possibly generating a completely different title if the topic shifts significantly."
-      },
-      {
+        content: "You are a highly efficient chat summarizer. Create a concise, relevant title (5 words or fewer) that captures the conversation theme."
+      };
+      
+      const userMessage = {
         role: "user",
-        content: `Please summarize this ${messageCount === 1 ? 'initial message' : 'conversation'} in 5 or fewer words:\n${initialMessages.map(m => `${m.role}: ${m.content}`).join('\n')}`
+        content: `Please summarize this ${messages.length === 1 ? 'initial message' : 'conversation'} in 5 or fewer words:\n${initialMessages.map(m => `${m.role}: ${m.content}`).join('\n')}`
+      };
+      
+      const response = await axios.post('https://text.pollinations.ai/', {
+        messages: [systemMessage, userMessage],
+        seed: Math.floor(Math.random() * 1000),
+        model: settings.pollinationsModel || 'openai-large'
+      });
+      
+      // The response is the actual text content directly
+      if (response.data) {
+        return response.data.trim();
+      } else {
+        throw new Error('Invalid response from Pollinations.ai');
       }
-    ];
+    } else {
+      // Use OpenAI/Azure as before
+      const client = new OpenAI({
+        baseURL: settings.endpoint || defaultEndpoint,
+        apiKey: settings.apiKey || defaultOpenAIKey,
+        dangerouslyAllowBrowser: true,
+      });
 
-    const response = await client.chat.completions.create({
-      messages: prompt,
-      temperature: 0.7,
-      max_tokens: 30,
-      model: "Phi-4",
-    });
+      // Take first 5 exchanges or fewer
+      const initialMessages = messages.slice(0, 10);
+      
+      // Create the summarization prompt based on message count
+      const messageCount = messages.length;
+      const prompt = [
+        {
+          role: "system",
+          content: "You are a highly efficient chat summarizer. Create a concise, relevant title (5 words or fewer) that captures the conversation theme. For first message, focus on the initial topic. For subsequent messages (2-3), refine the title based on how the conversation evolves, possibly generating a completely different title if the topic shifts significantly."
+        },
+        {
+          role: "user",
+          content: `Please summarize this ${messageCount === 1 ? 'initial message' : 'conversation'} in 5 or fewer words:\n${initialMessages.map(m => `${m.role}: ${m.content}`).join('\n')}`
+        }
+      ];
 
-    const chatName = response.choices[0].message.content.trim();
-    return chatName;
+      const response = await client.chat.completions.create({
+        messages: prompt,
+        temperature: 0.7,
+        max_tokens: 30,
+        model: "Phi-4",
+      });
+
+      const chatName = response.choices[0].message.content.trim();
+      return chatName;
+    }
   } catch (error) {
     console.error('Error in generateChatName:', error);
     throw new Error(error.message || 'Failed to generate chat name');
@@ -47,153 +78,205 @@ export const generateChatName = async (messages, settings) => {
 
 export const fetchChatCompletion = async (messages, settings, toolResponses = []) => {
   try {
-    const client = new OpenAI({
-      baseURL: settings.endpoint || defaultEndpoint,
-      apiKey: settings.apiKey || defaultOpenAIKey,
-      dangerouslyAllowBrowser: true,
-    });
-
-    // Define available tools
-    const tools = [
-      {
-        type: 'function',
-        function: {
-          name: 'performWebSearch',
-          description: 'Performs a web search using the Tavily API and returns the results.',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: {
-                type: 'string',
-                description: 'The search query to perform on the web',
-              },
-              search_depth: {
-                type: 'string',
-                description: 'The depth of the search. A basic search costs 1 API Credit, while an advanced search costs 2 API Credits.',
-                enum: ['basic', 'advanced'],
-              },
-              max_results: {
-                type: 'integer',
-                description: 'The maximum number of search results to return (0-20).',
-                minimum: 1,
-                maximum: 20,
-              },
-              time_range: {
-                type: 'string',
-                description: 'The time range back from the current date to filter results.',
-                enum: ['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'],
-              },
-              days: {
-                type: 'integer',
-                description: 'Number of days back from the current date to include. Available only if topic is news.',
-                minimum: 0,
-              },
-              include_answer: {
-                type: 'boolean',
-                description: 'Include an LLM-generated answer to the provided query. basic or true returns a quick answer. advanced returns a more detailed answer.',
-              },
-              include_raw_content: {
-                type: 'boolean',
-                description: 'Include the cleaned and parsed HTML content of each search result.',
-              },
-              include_images: {
-                type: 'boolean',
-                description: 'Also perform an image search and include the results in the response.',
-              },
-              include_image_descriptions: {
-                type: 'boolean',
-                description: 'When include_images is true, also add a descriptive text for each image.',
-              },
-              include_domains: {
-                type: 'array',
-                description: 'A list of domains to specifically include in the search results.',
-                items: {
-                  type: 'string'
-                }
-              },
-              exclude_domains: {
-                type: 'array',
-                description: 'A list of domains to specifically exclude from the search results.',
-                items: {
-                  type: 'string'
-                }
-              },
-            },
-            required: ['query'],
+    // If Pollinations.ai mode is enabled, use the Pollinations.ai API
+    if (settings.usePollinationsAi) {
+      // If there are tool responses, append them to messages
+      const finalMessages = toolResponses.length > 0 
+        ? [...messages, ...toolResponses]
+        : messages;
+        
+      console.log('Using Pollinations.ai for completion');
+      
+      // Format messages according to the Pollinations.ai API requirements
+      const response = await axios.post('https://text.pollinations.ai/', {
+        messages: finalMessages,
+        seed: Math.floor(Math.random() * 1000),
+        model: settings.pollinationsModel || 'openai-large'
+      });
+      
+      // Based on the sample code, the response is the direct text content
+      if (response.data) {
+        // Format the response to match OpenAI format
+        return {
+          message: {
+            content: response.data,
+            role: 'assistant'
           },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'generateImage',
-          description: 'Generates an image using Pollinations.ai based on a text prompt.',
-          parameters: {
-            type: 'object',
-            properties: {
-              prompt: {
-                type: 'string',
-                description: 'A detailed description of the image to generate. Be specific and descriptive for best results.',
-              }
-            },
-            required: ['prompt'],
-          },
-        },
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'performReasoning',
-          description: 'Performs extended reasoning using Pollinations AI reasoning model to help with complex problems.',
-          parameters: {
-            type: 'object',
-            properties: {
-              query: {
-                type: 'string',
-                description: 'The problem or question that requires deeper reasoning before answering.',
-              },
-              depth: {
-                type: 'string',
-                description: 'The depth of reasoning to perform.',
-                enum: ['basic', 'advanced'],
-                default: 'advanced'
-              }
-            },
-            required: ['query'],
-          },
-        },
+          finish_reason: 'stop'
+        };
+      } else {
+        throw new Error('Invalid response from Pollinations.ai');
       }
-    ];
+    } else {
+      // Otherwise use OpenAI/Azure as before
+      const client = new OpenAI({
+        baseURL: settings.endpoint || defaultEndpoint,
+        apiKey: settings.apiKey || defaultOpenAIKey,
+        dangerouslyAllowBrowser: true,
+      });
 
-    // If there are tool responses, append them to messages
-    const finalMessages = toolResponses.length > 0 
-      ? [...messages, ...toolResponses]
-      : messages;
+      // Define available tools
+      const tools = [
+        {
+          type: 'function',
+          function: {
+            name: 'performWebSearch',
+            description: 'Performs a web search using the Tavily API and returns the results.',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'The search query to perform on the web',
+                },
+                search_depth: {
+                  type: 'string',
+                  description: 'The depth of the search. A basic search costs 1 API Credit, while an advanced search costs 2 API Credits.',
+                  enum: ['basic', 'advanced'],
+                },
+                max_results: {
+                  type: 'integer',
+                  description: 'The maximum number of search results to return (0-20).',
+                  minimum: 1,
+                  maximum: 20,
+                },
+                time_range: {
+                  type: 'string',
+                  description: 'The time range back from the current date to filter results.',
+                  enum: ['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'],
+                },
+                days: {
+                  type: 'integer',
+                  description: 'Number of days back from the current date to include. Available only if topic is news.',
+                  minimum: 0,
+                },
+                include_answer: {
+                  type: 'boolean',
+                  description: 'Include an LLM-generated answer to the provided query. basic or true returns a quick answer. advanced returns a more detailed answer.',
+                },
+                include_raw_content: {
+                  type: 'boolean',
+                  description: 'Include the cleaned and parsed HTML content of each search result.',
+                },
+                include_images: {
+                  type: 'boolean',
+                  description: 'Also perform an image search and include the results in the response.',
+                },
+                include_image_descriptions: {
+                  type: 'boolean',
+                  description: 'When include_images is true, also add a descriptive text for each image.',
+                },
+                include_domains: {
+                  type: 'array',
+                  description: 'A list of domains to specifically include in the search results.',
+                  items: {
+                    type: 'string'
+                  }
+                },
+                exclude_domains: {
+                  type: 'array',
+                  description: 'A list of domains to specifically exclude from the search results.',
+                  items: {
+                    type: 'string'
+                  }
+                },
+              },
+              required: ['query'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'generateImage',
+            description: 'Generates an image using Pollinations.ai based on a text prompt.',
+            parameters: {
+              type: 'object',
+              properties: {
+                prompt: {
+                  type: 'string',
+                  description: 'A detailed description of the image to generate. Be specific and descriptive for best results.',
+                }
+              },
+              required: ['prompt'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'performReasoning',
+            description: 'Performs extended reasoning using Pollinations AI reasoning model to help with complex problems.',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'The problem or question that requires deeper reasoning before answering.',
+                },
+                depth: {
+                  type: 'string',
+                  description: 'The depth of reasoning to perform.',
+                  enum: ['basic', 'advanced'],
+                  default: 'advanced'
+                }
+              },
+              required: ['query'],
+            },
+          },
+        }
+      ];
 
-    const response = await client.chat.completions.create({
-      messages: finalMessages,
-      tools: toolResponses.length === 0 ? tools : undefined, // Only include tools on initial request
-      temperature: settings.temperature || 0.7,
-      max_tokens: parseInt(settings.maxTokens) || 8000,
-      model: settings.modelName,
-    });
+      // If there are tool responses, append them to messages
+      const finalMessages = toolResponses.length > 0 
+        ? [...messages, ...toolResponses]
+        : messages;
 
-    const completion = response.choices[0];
-    
-    // If the response indicates tool calls are needed
-    if (completion.finish_reason === 'tool_calls' && completion.message.tool_calls) {
-      // Return the tool calls for processing
-      return {
-        ...completion,
-        requiresToolCalls: true
-      };
+      const response = await client.chat.completions.create({
+        messages: finalMessages,
+        tools: toolResponses.length === 0 ? tools : undefined, // Only include tools on initial request
+        temperature: settings.temperature || 0.7,
+        max_tokens: parseInt(settings.maxTokens) || 8000,
+        model: settings.modelName,
+      });
+
+      const completion = response.choices[0];
+      
+      // If the response indicates tool calls are needed
+      if (completion.finish_reason === 'tool_calls' && completion.message.tool_calls) {
+        // Return the tool calls for processing
+        return {
+          ...completion,
+          requiresToolCalls: true
+        };
+      }
+
+      // Otherwise return the regular completion
+      return completion;
     }
-
-    // Otherwise return the regular completion
-    return completion;
   } catch (error) {
     console.error('Error in fetchChatCompletion:', error);
     throw new Error(error.message || 'Failed to get completion from API');
+  }
+};
+
+// Add a direct implementation of Pollinations.ai text generation for debugging
+export const testPollinationsAi = async (message) => {
+  try {
+    const response = await axios.post('https://text.pollinations.ai/', {
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: message }
+      ],
+      seed: 42,
+      model: 'openai-large'
+    });
+    
+    console.log('Raw Pollinations.ai response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error testing Pollinations.ai:', error);
+    throw new Error(error.message || 'Failed to test Pollinations.ai');
   }
 };
 
@@ -245,16 +328,15 @@ export const generateImage = async (prompt) => {
 
 export const performReasoning = async (query, options = {}) => {
   try {
-    // Encode the query for URL
-    const encodedQuery = encodeURIComponent(query);
-    
-    // Prepare the URL for the reasoning API
-    const reasoningUrl = `https://text.pollinations.ai/${encodedQuery}/model=openai-reasoning`;
-    
-    console.log('Fetching reasoning from:', reasoningUrl);
-    
-    // Fetch the reasoning result
-    const response = await axios.get(reasoningUrl);
+    // Directly use the POST endpoint for reasoning with the openai-reasoning model
+    const response = await axios.post('https://text.pollinations.ai/', {
+      messages: [
+        { role: 'system', content: 'You are a reasoning assistant that thinks deeply about problems.' },
+        { role: 'user', content: query }
+      ],
+      seed: Math.floor(Math.random() * 1000),
+      model: 'openai-reasoning'
+    });
     
     // Check if we got a valid response
     if (response.data) {
