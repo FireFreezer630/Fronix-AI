@@ -14,6 +14,12 @@ A ChatGPT-like clone built with React that integrates with the OpenAI API. This 
 - Client-side storage for saving conversations and settings
 - Web search capabilities with customizable parameters
 - Image generation using Pollinations.ai
+- File upload support
+  - Upload and process images and PDF documents
+  - Visual preview for uploaded files
+- Smart conversation management
+  - Automatic conversation renaming using AI
+  - Copy message content to clipboard
 - Dark/Light mode toggle
 - Environment variables support for API keys
 
@@ -87,6 +93,10 @@ You can configure your API settings in two ways:
 - Click "New Chat" to start a new conversation
 - Click on a conversation in the sidebar to switch between conversations
 - Hover over a conversation to see the delete button
+- Automatic conversation renaming
+  - New conversations are automatically renamed based on context
+  - Uses Mistral-small model for efficient title generation
+- Copy any assistant message to clipboard with one click
 - All conversations are stored in your browser's localStorage
 - Close the sidebar by:
   - Clicking the arrow button in the top right of the sidebar
@@ -98,6 +108,11 @@ You can configure your API settings in two ways:
 - Type your message in the input field at the bottom of the chat window
 - Press Enter or click the send button to send your message
 - Use Shift+Enter for a new line without sending
+- Upload files directly in the chat:
+  - Click the upload button or drag and drop files
+  - Supports images and PDF documents
+  - Preview uploaded files before sending
+  - Remove uploaded files if needed
 
 ### Web Search
 

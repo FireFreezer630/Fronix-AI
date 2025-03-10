@@ -1,5 +1,9 @@
 /* App.css - Modern, Aesthetic, Minimal, Clean UI with Neumorphic and Glassmorphic Elements */
 /* App.css - Modern, Aesthetic, Minimal, Clean UI with Neumorphic and Glassmorphic Elements */
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* Root Variables - Light Mode */
 :root {
@@ -100,8 +104,6 @@
   padding: 0;
 }
 
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 body {
   font-family: var(--font-primary);
@@ -160,7 +162,57 @@ code {
   overflow: hidden;
   position: relative; /* Added to allow absolute positioning of sidebar */
 }
+/* Add these styles to your main CSS file */
 
+/* Styling for reasoning messages */
+.message.with-reasoning {
+  border-left: 3px solid #9333ea; /* Purple accent for reasoning messages */
+}
+
+.reasoning-indicator {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+  color: #9333ea;
+  margin-bottom: 8px;
+}
+
+.reasoning-indicator .icon {
+  width: 18px;
+  height: 18px;
+  margin-right: 6px;
+}
+
+/* Styling for reasoning details */
+.reasoning-details {
+  margin-top: 10px;
+  border-top: 1px dashed #ddd;
+  padding-top: 10px;
+}
+
+.reasoning-details summary {
+  cursor: pointer;
+  color: #9333ea;
+  font-weight: 500;
+  user-select: none;
+}
+
+.reasoning-details summary:hover {
+  text-decoration: underline;
+}
+
+.reasoning-content {
+  margin-top: 8px;
+  padding: 10px;
+  background-color: rgba(147, 51, 234, 0.05);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+/* Animation for deep thinking */
+.message-content.thinking:has(+ span.deep-thinking) span {
+  animation-duration: 1.8s; /* Slower animation for deep thinking */
+}
 /* Neumorphic Mixins */
 .neumorphic {
   box-shadow: none; /* Remove any glow or shadow */
@@ -1639,8 +1691,6 @@ code {
 .message-content img:hover {
   transform: scale(1.02);
 }
-/* Import Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* Root Variables - Light Mode */
 :root {

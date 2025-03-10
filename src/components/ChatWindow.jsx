@@ -1,9 +1,9 @@
 // src/components/ChatWindow.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon, PhotoIcon, DocumentIcon } from '@heroicons/react/24/solid';
+import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon, PhotoIcon, DocumentIcon, LightBulbIcon } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
 
-export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation, settings }) => {
+export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation, settings, isReasoning }) => {
   const [message, setMessage] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const endOfMessagesRef = useRef(null);
@@ -41,7 +41,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
     if (endOfMessagesRef.current) {
       endOfMessagesRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [conversation?.messages, isLoading]);
+  }, [conversation?.messages, isLoading, isReasoning]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -63,7 +63,34 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
   }, [conversation]);
 
   // Process message content to handle special formats
-  const processMessageContent = (content, imageUrl) => {
+  const processMessageContent = (content, imageUrl, reasoningData) => {
+    // Check if the message has reasoning data
+    if (reasoningData) {
+      return (
+        <>
+          <div className="reasoning-indicator">
+            <LightBulbIcon className="icon" />
+            <span>Extended reasoning used</span>
+          </div>
+          <div className="markdown-content">
+            <ReactMarkdown>
+              {content}
+            </ReactMarkdown>
+          </div>
+          {reasoningData.reasoning && (
+            <details className="reasoning-details">
+              <summary>View reasoning process</summary>
+              <div className="reasoning-content">
+                <ReactMarkdown>
+                  {reasoningData.reasoning}
+                </ReactMarkdown>
+              </div>
+            </details>
+          )}
+        </>
+      );
+    }
+    
     // Check if the message has a direct imageUrl property (from image generation)
     if (imageUrl) {
       return (
@@ -109,7 +136,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       return (
         <div className="empty-state">
           <h2>Welcome to AI Chat Assistant</h2>
-          <p>Ask me anything, search the web, or generate images!</p>
+          <p>Ask me anything, search the web, generate images, or use extended reasoning!</p>
         </div>
       );
     }
@@ -122,9 +149,9 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
       }
       
       return (
-        <div key={msg.timestamp || index} className={`message ${msg.role}`}>
+        <div key={msg.timestamp || index} className={`message ${msg.role} ${msg.reasoningData ? 'with-reasoning' : ''}`}>
           <div className="message-content">
-            {processMessageContent(msg.content, msg.imageUrl)}
+            {processMessageContent(msg.content, msg.imageUrl, msg.reasoningData)}
             {msg.role === 'assistant' && (
               <button
                 className="copy-button"
@@ -149,7 +176,7 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
           <div className="message assistant">
             <div className="message-avatar">🤖</div>
             <div className="message-content thinking">
-              Thinking<span>.</span><span>.</span><span>.</span>
+              {isReasoning ? 'Deep thinking' : 'Thinking'}<span>.</span><span>.</span><span>.</span>
             </div>
           </div>
         )}

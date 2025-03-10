@@ -3,9 +3,69 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
 import { SettingsModal } from './components/SettingsModal';
-import { fetchChatCompletion, performWebSearch, generateImage } from './services/api';
+import { fetchChatCompletion, performWebSearch, generateImage, performReasoning } from './services/api';
 import { Bars3Icon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import './App.css';
+
+// Helper function to create status message for tool calls
+const getStatusMessage = (functionName, args) => {
+  switch (functionName) {
+    case 'performWebSearch':
+      const searchParams = [];
+      if (args.search_depth === 'advanced') searchParams.push('advanced search');
+      if (args.max_results) searchParams.push(`${args.max_results} results`);
+      if (args.time_range) searchParams.push(`from ${args.time_range}`);
+      return `Searching for: "${args.query}"${searchParams.length ? ` (${searchParams.join(', ')})` : ''}`;
+    case 'performReasoning':
+      return `Reasoning about: "${args.query}"`;
+    case 'generateImage':
+      return `Generating image: "${args.prompt}"`;
+    default:
+      return 'Processing...';
+  }
+};
+
+// Helper function to process assistant response with tool results
+const processAssistantResponse = (response, toolResponses) => {
+  let processedContent = response.message.content;
+  const timestamp = Date.now();
+
+  // Check for image URLs in tool responses
+  const imageToolResponse = toolResponses.find(tr => {
+    try {
+      const content = JSON.parse(tr.content);
+      return content.url && content.url.includes('pollinations.ai');
+    } catch (e) {
+      return false;
+    }
+  });
+
+  if (imageToolResponse) {
+    try {
+      const { url } = JSON.parse(imageToolResponse.content);
+      return { 
+        role: 'assistant',
+        content: processedContent,
+        timestamp,
+        imageUrl: url
+      };
+    } catch (e) {
+      console.error('Error processing image URL:', e);
+    }
+  }
+
+  // Process any pollinations.ai URLs in the content
+  const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
+  processedContent = processedContent.replace(pollinationsRegex, (match) => {
+    return `![Generated Image](${match})`;
+  });
+
+  return {
+    role: 'assistant',
+    content: processedContent,
+    timestamp
+  };
+};
 
 function App() {
   // Load conversations from localStorage
@@ -70,26 +130,78 @@ function App() {
       year: 'numeric'
     });
     
-    const prompt = `You are a helpful assistant with web search and image generation capabilities. The current date is ${formattedDate}. 
-    For image generation, you can create images by using the generateImage function with a descriptive prompt.
-The image will be generated using Pollinations.ai and displayed directly in the chat.
+    const prompt = `You are a versatile, helpful assistant with web search and image generation capabilities. The current date is ${formattedDate}.
+Core Capabilities
+Web Search
+You can search the web using the performWebSearch function to find recent information, articles, and data. Use web search for:
 
-When performing web searches, you can customize the search parameters based on the user's query:
-- search_depth: Use 'advanced' for complex queries requiring in-depth information, 'basic' for simple queries (default: basic)
-- max_results: Number of results to return, 1-20 (default: 5)
-- time_range: Filter by time - 'day', 'week', 'month', 'year' (use for time-sensitive queries)
-- include_answer: Set to true to include an AI-generated summary of the search results (default: true)
-- include_images: Set to true to include image search results (useful for visual topics)
-- include_domains/exclude_domains: Arrays of specific domains to include or exclude
+Current events and news
+Factual information that may be beyond your knowledge
+Research topics requiring up-to-date information
+Verification of claims or statements
 
-Guidelines for choosing parameters:
-- For recent news or events: use time_range='day' or 'week' and max_results=10
-- For research topics: use search_depth='advanced' and max_results=15
-- For simple factual questions: use search_depth='basic' and max_results=3
-- For visual topics (art, design, places): use include_images=true
-- For technical documentation: consider using include_domains with specific technical sites
+Image Generation
+You can create images through the generateImage function with descriptive prompts. Images are generated via Pollinations.ai and displayed directly in the chat.
+Advanced Features
+Web Search Parameters
+Customize your searches based on query requirements:
+ParameterDescriptionOptionsDefaultsearch_depthSearch thoroughness'basic', 'advanced''basic'max_resultsNumber of results1-205time_rangeTime filter'day', 'week', 'month', 'year'noneinclude_answerAI-generated summarybooleantrueinclude_imagesImage resultsbooleanfalseinclude_domainsSpecific sites to includearray of domainsnoneexclude_domainsSites to excludearray of domainsnone
+Web Search Strategy Guide
 
-Always choose parameters that best serve the user's information needs.`;
+For time-sensitive queries:
+
+Use time_range='day' or 'week'
+Increase max_results to 10+
+Example: "What happened in the latest SpaceX launch?"
+
+
+For research and in-depth topics:
+
+Use search_depth='advanced'
+Set max_results to 15
+Example: "What are the latest developments in quantum computing?"
+
+
+For quick facts:
+
+Use search_depth='basic'
+Limit max_results to 3-5
+Example: "What's the population of Tokyo?"
+
+
+For visual topics:
+
+Enable include_images=true
+Example: "Show me examples of Art Deco architecture"
+
+
+For technical documentation:
+
+Use include_domains with relevant technical sites
+Example: "How do I use React hooks?" with developer domains
+
+
+
+Image Generation Best Practices
+Create detailed prompts that specify:
+
+Subject matter
+Style (photorealistic, cartoon, painting)
+Composition (close-up, wide shot)
+Lighting, mood, and setting
+Color scheme or tone
+
+Example: "A serene Japanese garden with a small wooden bridge over a koi pond, cherry blossoms falling, soft morning light, Studio Ghibli style"
+Interaction Guidelines
+
+Always provide accurate, helpful information
+Cite sources when using web search results
+For complex queries, explain your reasoning and methodology
+Suggest web searches when questions might benefit from recent information
+Suggest image generation when visual content would enhance the response
+Maintain a conversational, friendly tone while being concise and informative
+
+Remember to always choose parameters and approaches that best serve the user's specific information needs and context.`;
     
     setSystemPrompt(prompt);
   }, []);
@@ -258,124 +370,81 @@ Always choose parameters that best serve the user's information needs.`;
     ];
 
     try {
+      // Initial completion request
       const response = await fetchChatCompletion(messages, apiSettings);
-      if (response.finish_reason === 'tool_calls') {
-        const toolCall = response.message.tool_calls[0];
+      
+      // Handle tool calls if present
+      if (response.requiresToolCalls && response.message.tool_calls) {
+        const toolResponses = [];
         
-        if (toolCall.type === 'function' && toolCall.function.name === 'performWebSearch') {
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          const searchingMessage = { role: 'system', content: 'Searching the web...', timestamp: Date.now() };
-          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
-            ...conv,
-            messages: [...conv.messages, searchingMessage]
-          } : conv));
+        // Process each tool call sequentially
+        for (const toolCall of response.message.tool_calls) {
+          if (toolCall.type !== 'function') continue;
 
-          const { query, ...searchOptions } = functionArgs;
+          let toolResult;
+          const functionName = toolCall.function.name;
+          const functionArgs = JSON.parse(toolCall.function.arguments);
           
-          console.log('Web search query:', query);
-          console.log('Web search options:', searchOptions);
-          
-          let searchDescription = `Searching for: "${query}"`;
-          const searchParams = [];
-          
-          if (searchOptions.search_depth === 'advanced') {
-            searchParams.push('advanced search');
-          }
-          
-          if (searchOptions.max_results) {
-            const resultsText = searchOptions.max_results === 1 ? 'result' : 'results';
-            searchParams.push(`${searchOptions.max_results} ${resultsText}`);
-          }
-          
-          if (searchOptions.time_range) {
-            const timeRangeMap = {
-              'day': 'past day',
-              'd': 'past day',
-              'week': 'past week',
-              'w': 'past week',
-              'month': 'past month',
-              'm': 'past month',
-              'year': 'past year',
-              'y': 'past year'
-            };
-            searchParams.push(timeRangeMap[searchOptions.time_range] || searchOptions.time_range);
-          }
-          
-          if (searchOptions.include_images) {
-            searchParams.push('with images');
-          }
-          
-          if (searchOptions.include_answer) {
-            searchParams.push('with AI summary');
-          }
-          
-          if (searchParams.length > 0) {
-            searchDescription += ` (${searchParams.join(', ')})`;
-          }
-          
-          const updatedSearchingMessage = { 
+          // Add temporary message to show tool status
+          const statusMessage = { 
             role: 'system', 
-            content: searchDescription, 
+            content: getStatusMessage(functionName, functionArgs),
             timestamp: Date.now() 
           };
           
-          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
-            ...conv,
-            messages: [...conv.messages.filter(msg => msg.content !== 'Searching the web...'), updatedSearchingMessage]
-          } : conv));
+          setConversations(prev => prev.map(conv => 
+            conv.id === currentConversationId 
+              ? { ...conv, messages: [...conv.messages, statusMessage] }
+              : conv
+          ));
 
-          const searchResult = await performWebSearch(query, apiSettings.tavilyApiKey, searchOptions);
+          if (functionName === 'performWebSearch') {
+            const { query, ...searchOptions } = functionArgs;
+            toolResult = await performWebSearch(query, apiSettings.tavilyApiKey, searchOptions);
+          } else if (functionName === 'performReasoning') {
+            toolResult = await performReasoning(functionArgs.query, {
+              depth: functionArgs.depth || 'advanced'
+            });
+          } else if (functionName === 'generateImage') {
+            const imageUrl = await generateImage(functionArgs.prompt);
+            toolResult = JSON.stringify({ url: imageUrl });
+          }
+
+          // Create tool response
           const toolResponse = {
             role: 'tool',
-            content: searchResult,
-            tool_call_id: toolCall.id,
+            content: toolResult,
+            tool_call_id: toolCall.id
           };
-          messages = [...messages, response.message, toolResponse];
-          const finalResponse = await fetchChatCompletion(messages, apiSettings);
-          const assistantMessage = { role: 'assistant', content: finalResponse.message.content, timestamp: Date.now() };
-          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
-            ...conv,
-            messages: [...conv.messages.filter(msg => msg.content.startsWith('Searching')), assistantMessage]
-          } : conv));
+          toolResponses.push(toolResponse);
         }
-        else if (toolCall.type === 'function' && toolCall.function.name === 'generateImage') {
-          const functionArgs = JSON.parse(toolCall.function.arguments);
-          const generatingMessage = { 
-            role: 'system', 
-            content: `Generating image: "${functionArgs.prompt}"`, 
-            timestamp: Date.now() 
-          };
-          
-          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
-            ...conv,
-            messages: [...conv.messages, generatingMessage]
-          } : conv));
 
-          const imageUrl = await generateImage(functionArgs.prompt);
-          const toolResponse = {
-            role: 'tool',
-            content: JSON.stringify({ url: imageUrl }),
-            tool_call_id: toolCall.id,
-          };
-          
-          messages = [...messages, response.message, toolResponse];
-          const finalResponse = await fetchChatCompletion(messages, apiSettings);
-          
-          let processedContent = finalResponse.message.content;
-          
-          const assistantMessage = { 
-            role: 'assistant', 
-            content: processedContent, 
-            timestamp: Date.now(),
-            imageUrl: imageUrl
-          };
-          
-          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
-            ...conv,
-            messages: [...conv.messages.filter(msg => !msg.content.startsWith('Generating image')), assistantMessage]
-          } : conv));
-        }
+        // Make final completion request with all tool responses
+        const finalMessages = [...messages, response.message, ...toolResponses];
+        const finalResponse = await fetchChatCompletion(
+          finalMessages,
+          apiSettings
+        );
+
+        // Process the final response
+        const assistantMessage = processAssistantResponse(finalResponse, toolResponses);
+        
+        // Update conversation with final response
+        setConversations(prev => prev.map(conv => 
+          conv.id === currentConversationId 
+            ? {
+                ...conv,
+                messages: [
+                  ...conv.messages.filter(msg => !msg.content.startsWith('Searching') && 
+                                               !msg.content.startsWith('Reasoning') && 
+                                               !msg.content.startsWith('Generating')),
+                  assistantMessage
+                ]
+              }
+            : conv
+        ));
       } else {
+        // Handle regular response without tool calls
         let processedContent = response.message.content;
         
         const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;

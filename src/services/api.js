@@ -1,6 +1,11 @@
 import OpenAI from 'openai';
 import axios from 'axios';
 
+// Get environment variables with fallbacks
+const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com';
+const defaultOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';
+const defaultTavilyKey = import.meta.env.VITE_TAVILY_API_KEY || '';
+
 export const generateChatName = async (messages, settings) => {
   try {
     const client = new OpenAI({
@@ -40,20 +45,15 @@ export const generateChatName = async (messages, settings) => {
   }
 };
 
-
-// Get environment variables with fallbacks
-const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com';
-const defaultOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';
-const defaultTavilyKey = import.meta.env.VITE_TAVILY_API_KEY || '';
-
-export const fetchChatCompletion = async (messages, settings) => {
+export const fetchChatCompletion = async (messages, settings, toolResponses = []) => {
   try {
     const client = new OpenAI({
       baseURL: settings.endpoint || defaultEndpoint,
       apiKey: settings.apiKey || defaultOpenAIKey,
-      dangerouslyAllowBrowser: true, // Note: For development only; secure API keys in production
+      dangerouslyAllowBrowser: true,
     });
 
+    // Define available tools
     const tools = [
       {
         type: 'function',
@@ -139,18 +139,58 @@ export const fetchChatCompletion = async (messages, settings) => {
             required: ['prompt'],
           },
         },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'performReasoning',
+          description: 'Performs extended reasoning using Pollinations AI reasoning model to help with complex problems.',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The problem or question that requires deeper reasoning before answering.',
+              },
+              depth: {
+                type: 'string',
+                description: 'The depth of reasoning to perform.',
+                enum: ['basic', 'advanced'],
+                default: 'advanced'
+              }
+            },
+            required: ['query'],
+          },
+        },
       }
     ];
 
+    // If there are tool responses, append them to messages
+    const finalMessages = toolResponses.length > 0 
+      ? [...messages, ...toolResponses]
+      : messages;
+
     const response = await client.chat.completions.create({
-      messages,
-      tools,
+      messages: finalMessages,
+      tools: toolResponses.length === 0 ? tools : undefined, // Only include tools on initial request
       temperature: settings.temperature || 0.7,
       max_tokens: parseInt(settings.maxTokens) || 8000,
       model: settings.modelName,
     });
 
-    return response.choices[0];
+    const completion = response.choices[0];
+    
+    // If the response indicates tool calls are needed
+    if (completion.finish_reason === 'tool_calls' && completion.message.tool_calls) {
+      // Return the tool calls for processing
+      return {
+        ...completion,
+        requiresToolCalls: true
+      };
+    }
+
+    // Otherwise return the regular completion
+    return completion;
   } catch (error) {
     console.error('Error in fetchChatCompletion:', error);
     throw new Error(error.message || 'Failed to get completion from API');
@@ -200,5 +240,37 @@ export const generateImage = async (prompt) => {
   } catch (error) {
     console.error('Error in generateImage:', error);
     throw new Error('Failed to generate image');
+  }
+};
+
+export const performReasoning = async (query, options = {}) => {
+  try {
+    // Encode the query for URL
+    const encodedQuery = encodeURIComponent(query);
+    
+    // Prepare the URL for the reasoning API
+    const reasoningUrl = `https://text.pollinations.ai/${encodedQuery}/model=openai-reasoning`;
+    
+    console.log('Fetching reasoning from:', reasoningUrl);
+    
+    // Fetch the reasoning result
+    const response = await axios.get(reasoningUrl);
+    
+    // Check if we got a valid response
+    if (response.data) {
+      console.log('Reasoning response received');
+      return JSON.stringify({
+        reasoning: response.data,
+        query: query
+      });
+    } else {
+      throw new Error('Empty response from reasoning API');
+    }
+  } catch (error) {
+    console.error('Error in performReasoning:', error);
+    return JSON.stringify({ 
+      error: 'Failed to perform reasoning', 
+      details: error.message 
+    });
   }
 };
