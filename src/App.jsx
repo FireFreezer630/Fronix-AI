@@ -116,7 +116,8 @@ function App() {
       modelName: savedSettings.modelName || 'gpt-4o',
       temperature: savedSettings.temperature || 0.7,
       maxTokens: savedSettings.maxTokens || 8000,
-      darkMode: savedSettings.darkMode || false
+      darkMode: savedSettings.darkMode || false,
+      streamingEnabled: savedSettings.streamingEnabled !== undefined ? savedSettings.streamingEnabled : true
     };
   });
 
@@ -127,6 +128,10 @@ function App() {
   const titleInputRef = useRef(null);
   const sidebarRef = useRef(null);
   const mainContentRef = useRef(null);
+  
+  // For streaming support
+  const [currentlyStreamingId, setCurrentlyStreamingId] = useState(null);
+  const abortControllerRef = useRef(null);
   
   // Set system prompt with current date
   useEffect(() => {
@@ -230,6 +235,15 @@ Remember to always choose parameters and approaches that best serve the user's s
     localStorage.setItem('sidebarCollapsed', JSON.stringify(isSidebarCollapsed));
   }, [conversations, currentConversationId, apiSettings, isSidebarCollapsed]);
 
+  // Clean up abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   // Find the current conversation
   const currentConversation = conversations.find(conv => conv.id === currentConversationId) || conversations[0];
 
@@ -294,12 +308,48 @@ Remember to always choose parameters and approaches that best serve the user's s
     }
   };
 
+  // New function to handle streaming response chunks
+  const handleStreamingResponse = (chunk, conversationId, messageId) => {
+    setConversations(prev => prev.map(conv => {
+      if (conv.id !== conversationId) return conv;
+      
+      const messages = [...conv.messages];
+      const messageIndex = messages.findIndex(msg => msg.id === messageId);
+      
+      if (messageIndex !== -1) {
+        // Update existing message
+        messages[messageIndex] = {
+          ...messages[messageIndex],
+          content: messages[messageIndex].content + chunk
+        };
+      }
+      
+      return { ...conv, messages };
+    }));
+  };
+
+  // Function to stop streaming
+  const stopStreaming = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setCurrentlyStreamingId(null);
+    }
+  };
+
   const sendMessage = async (messageContent, file) => {
     if (!messageContent.trim() && !file) return;
     if (!apiSettings.apiKey) {
       setIsSettingsOpen(true);
       return;
     }
+
+    // Create a new abort controller for this request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     let userMessage = { role: 'user', content: messageContent, timestamp: Date.now() };
     
@@ -345,6 +395,7 @@ Remember to always choose parameters and approaches that best serve the user's s
         return;
       }
     }
+
     const isFirstMessage = currentConversation.messages.length === 0;
     let newConversation = {
       ...currentConversation,
@@ -362,116 +413,295 @@ Remember to always choose parameters and approaches that best serve the user's s
         if (msg.file) {
           return {
             role: msg.role,
-          content: msg.content,
-          uploadedImage: msg.uploadedImage
-        };
+            content: msg.content,
+            uploadedImage: msg.uploadedImage
+          };
         }
         return { role: msg.role, content: msg.content };
       })
     ];
 
     try {
-      // Initial completion request
-      const response = await fetchChatCompletion(messages, apiSettings);
+      // Determine if we should use streaming based on settings
+      const useStreaming = apiSettings.streamingEnabled;
       
-      // Handle tool calls if present
-      if (response.requiresToolCalls && response.message.tool_calls) {
-        const toolResponses = [];
+      // Initial completion request
+      if (useStreaming) {
+        // Create placeholder message for streaming
+        const assistantMessageId = Date.now();
+        const assistantMessage = { 
+          id: assistantMessageId,
+          role: 'assistant', 
+          content: '', 
+          timestamp: Date.now(),
+          isStreaming: true
+        };
         
-        // Process each tool call sequentially
-        for (const toolCall of response.message.tool_calls) {
-          if (toolCall.type !== 'function') continue;
-
-          let toolResult;
-          const functionName = toolCall.function.name;
-          const functionArgs = JSON.parse(toolCall.function.arguments);
+        setConversations(prev => prev.map(conv => 
+          conv.id === currentConversationId 
+            ? { ...conv, messages: [...conv.messages, assistantMessage] }
+            : conv
+        ));
+        
+        setCurrentlyStreamingId(assistantMessageId);
+        
+        // Start streaming request
+        const response = await fetchChatCompletion(
+          messages, 
+          { ...apiSettings, streaming: true, signal },
+          (chunk) => handleStreamingResponse(chunk, currentConversationId, assistantMessageId)
+        );
+        
+        // After streaming completes, update the message to mark streaming as finished
+        setConversations(prev => prev.map(conv => {
+          if (conv.id !== currentConversationId) return conv;
           
-          // Add temporary message to show tool status
-          const statusMessage = { 
-            role: 'system', 
-            content: getStatusMessage(functionName, functionArgs),
+          return {
+            ...conv,
+            messages: conv.messages.map(msg => 
+              msg.id === assistantMessageId 
+                ? { ...msg, isStreaming: false }
+                : msg
+            )
+          };
+        }));
+        
+        setCurrentlyStreamingId(null);
+        
+        // Handle tool calls if present
+        if (response.requiresToolCalls && response.message.tool_calls) {
+          const toolResponses = [];
+          
+          // Process each tool call sequentially
+          for (const toolCall of response.message.tool_calls) {
+            if (toolCall.type !== 'function') continue;
+
+            let toolResult;
+            const functionName = toolCall.function.name;
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+            
+            // Add temporary message to show tool status
+            const statusMessage = { 
+              role: 'system', 
+              content: getStatusMessage(functionName, functionArgs),
+              timestamp: Date.now() 
+            };
+            
+            setConversations(prev => prev.map(conv => 
+              conv.id === currentConversationId 
+                ? { ...conv, messages: [...conv.messages, statusMessage] }
+                : conv
+            ));
+
+            if (functionName === 'performWebSearch') {
+              const { query, ...searchOptions } = functionArgs;
+              toolResult = await performWebSearch(query, apiSettings.tavilyApiKey, searchOptions);
+            } else if (functionName === 'performReasoning') {
+              toolResult = await performReasoning(functionArgs.query, {
+                depth: functionArgs.depth || 'advanced'
+              });
+            } else if (functionName === 'generateImage') {
+              const imageUrl = await generateImage(functionArgs.prompt);
+              toolResult = JSON.stringify({ url: imageUrl });
+            }
+
+            // Create tool response
+            const toolResponse = {
+              role: 'tool',
+              content: toolResult,
+              tool_call_id: toolCall.id
+            };
+            toolResponses.push(toolResponse);
+          }
+
+          // Make final completion request with all tool responses
+          const finalMessages = [...messages, response.message, ...toolResponses];
+          
+          // Create a placeholder message for the final assistant response
+          const finalMessageId = Date.now();
+          const finalPlaceholder = {
+            id: finalMessageId,
+            role: 'assistant',
+            content: '',
+            timestamp: Date.now(),
+            isStreaming: true
+          };
+          
+          // Update conversation with placeholder and remove tool status messages
+          setConversations(prev => prev.map(conv => 
+            conv.id === currentConversationId 
+              ? {
+                  ...conv,
+                  messages: [
+                    ...conv.messages.filter(msg => 
+                      !msg.content.startsWith('Searching') && 
+                      !msg.content.startsWith('Reasoning') && 
+                      !msg.content.startsWith('Generating') &&
+                      msg.id !== assistantMessageId
+                    ),
+                    finalPlaceholder
+                  ]
+                }
+              : conv
+          ));
+          
+          setCurrentlyStreamingId(finalMessageId);
+          
+          // Start streaming the final response
+          const finalResponse = await fetchChatCompletion(
+            finalMessages,
+            { ...apiSettings, streaming: true, signal },
+            (chunk) => handleStreamingResponse(chunk, currentConversationId, finalMessageId)
+          );
+          
+          // Process any pollinations.ai URLs in the final content
+          setConversations(prev => prev.map(conv => {
+            if (conv.id !== currentConversationId) return conv;
+            
+            const messages = [...conv.messages];
+            const messageIndex = messages.findIndex(msg => msg.id === finalMessageId);
+            
+            if (messageIndex !== -1) {
+              const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
+              let processedContent = messages[messageIndex].content;
+              processedContent = processedContent.replace(pollinationsRegex, (match) => {
+                return `![Generated Image](${match})`;
+              });
+              
+              // Process any images from tools
+              const assistantMessage = processAssistantResponse(
+                { message: { content: processedContent } }, 
+                toolResponses
+              );
+              
+              messages[messageIndex] = {
+                ...messages[messageIndex],
+                ...assistantMessage,
+                isStreaming: false,
+                content: assistantMessage.content
+              };
+            }
+            
+            return { ...conv, messages };
+          }));
+          
+          setCurrentlyStreamingId(null);
+        }
+      } else {
+        // Non-streaming implementation (original code)
+        const response = await fetchChatCompletion(messages, apiSettings);
+        
+        // Handle tool calls if present
+        if (response.requiresToolCalls && response.message.tool_calls) {
+          const toolResponses = [];
+          
+          // Process each tool call sequentially
+          for (const toolCall of response.message.tool_calls) {
+            if (toolCall.type !== 'function') continue;
+
+            let toolResult;
+            const functionName = toolCall.function.name;
+            const functionArgs = JSON.parse(toolCall.function.arguments);
+            
+            // Add temporary message to show tool status
+            const statusMessage = { 
+              role: 'system', 
+              content: getStatusMessage(functionName, functionArgs),
+              timestamp: Date.now() 
+            };
+            
+            setConversations(prev => prev.map(conv => 
+              conv.id === currentConversationId 
+                ? { ...conv, messages: [...conv.messages, statusMessage] }
+                : conv
+            ));
+
+            if (functionName === 'performWebSearch') {
+              const { query, ...searchOptions } = functionArgs;
+              toolResult = await performWebSearch(query, apiSettings.tavilyApiKey, searchOptions);
+            } else if (functionName === 'performReasoning') {
+              toolResult = await performReasoning(functionArgs.query, {
+                depth: functionArgs.depth || 'advanced'
+              });
+            } else if (functionName === 'generateImage') {
+              const imageUrl = await generateImage(functionArgs.prompt);
+              toolResult = JSON.stringify({ url: imageUrl });
+            }
+
+            // Create tool response
+            const toolResponse = {
+              role: 'tool',
+              content: toolResult,
+              tool_call_id: toolCall.id
+            };
+            toolResponses.push(toolResponse);
+          }
+
+          // Make final completion request with all tool responses
+          const finalMessages = [...messages, response.message, ...toolResponses];
+          const finalResponse = await fetchChatCompletion(
+            finalMessages,
+            apiSettings
+          );
+
+          // Process the final response
+          const assistantMessage = processAssistantResponse(finalResponse, toolResponses);
+          
+          // Update conversation with final response
+          setConversations(prev => prev.map(conv => 
+            conv.id === currentConversationId 
+              ? {
+                  ...conv,
+                  messages: [
+                    ...conv.messages.filter(msg => !msg.content.startsWith('Searching') && 
+                                               !msg.content.startsWith('Reasoning') && 
+                                               !msg.content.startsWith('Generating')),
+                    assistantMessage
+                  ]
+                }
+              : conv
+          ));
+        } else {
+          // Handle regular response without tool calls
+          let processedContent = response.message.content;
+          
+          const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
+          processedContent = processedContent.replace(pollinationsRegex, (match) => {
+            return `![Generated Image](${match})`;
+          });
+          
+          const assistantMessage = { 
+            role: 'assistant', 
+            content: processedContent, 
             timestamp: Date.now() 
           };
           
-          setConversations(prev => prev.map(conv => 
-            conv.id === currentConversationId 
-              ? { ...conv, messages: [...conv.messages, statusMessage] }
-              : conv
-          ));
-
-          if (functionName === 'performWebSearch') {
-            const { query, ...searchOptions } = functionArgs;
-            toolResult = await performWebSearch(query, apiSettings.tavilyApiKey, searchOptions);
-          } else if (functionName === 'performReasoning') {
-            toolResult = await performReasoning(functionArgs.query, {
-              depth: functionArgs.depth || 'advanced'
-            });
-          } else if (functionName === 'generateImage') {
-            const imageUrl = await generateImage(functionArgs.prompt);
-            toolResult = JSON.stringify({ url: imageUrl });
-          }
-
-          // Create tool response
-          const toolResponse = {
-            role: 'tool',
-            content: toolResult,
-            tool_call_id: toolCall.id
-          };
-          toolResponses.push(toolResponse);
+          setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
+            ...conv,
+            messages: [...conv.messages, assistantMessage]
+          } : conv));
         }
-
-        // Make final completion request with all tool responses
-        const finalMessages = [...messages, response.message, ...toolResponses];
-        const finalResponse = await fetchChatCompletion(
-          finalMessages,
-          apiSettings
-        );
-
-        // Process the final response
-        const assistantMessage = processAssistantResponse(finalResponse, toolResponses);
-        
-        // Update conversation with final response
-        setConversations(prev => prev.map(conv => 
-          conv.id === currentConversationId 
-            ? {
-                ...conv,
-                messages: [
-                  ...conv.messages.filter(msg => !msg.content.startsWith('Searching') && 
-                                               !msg.content.startsWith('Reasoning') && 
-                                               !msg.content.startsWith('Generating')),
-                  assistantMessage
-                ]
-              }
-            : conv
-        ));
+      }
+    } catch (error) {
+      // Don't show error for aborted requests
+      if (error.name === 'AbortError') {
+        console.log('Request was aborted');
       } else {
-        // Handle regular response without tool calls
-        let processedContent = response.message.content;
-        
-        const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
-        processedContent = processedContent.replace(pollinationsRegex, (match) => {
-          return `![Generated Image](${match})`;
-        });
-        
-        const assistantMessage = { 
-          role: 'assistant', 
-          content: processedContent, 
+        const errorMessage = { 
+          role: 'system', 
+          content: `Error: ${error.message || 'Failed to get response.'}`, 
           timestamp: Date.now() 
         };
         
         setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
           ...conv,
-          messages: [...conv.messages, assistantMessage]
+          messages: [...conv.messages, errorMessage]
         } : conv));
       }
-    } catch (error) {
-      const errorMessage = { role: 'system', content: `Error: ${error.message || 'Failed to get response.'}`, timestamp: Date.now() };
-      setConversations(prev => prev.map(conv => conv.id === currentConversationId ? {
-        ...conv,
-        messages: [...conv.messages, errorMessage]
-      } : conv));
     } finally {
       setIsLoading(false);
+      setCurrentlyStreamingId(null);
+      abortControllerRef.current = null;
     }
   };
 
@@ -600,6 +830,8 @@ Remember to always choose parameters and approaches that best serve the user's s
           isLoading={isLoading}
           onRenameConversation={updateConversationTitle}
           settings={apiSettings}
+          isStreaming={currentlyStreamingId !== null}
+          onStopStreaming={stopStreaming}
         />
       </main>
       {isSettingsOpen && (

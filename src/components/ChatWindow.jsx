@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { PaperAirplaneIcon, ArrowPathIcon, ClipboardDocumentIcon, PhotoIcon, DocumentIcon, LightBulbIcon } from '@heroicons/react/24/solid';
 import ReactMarkdown from 'react-markdown';
 
-export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation, settings, isReasoning }) => {
+export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameConversation, settings, isReasoning, streamingContent }) => {
   const [message, setMessage] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const endOfMessagesRef = useRef(null);
@@ -39,12 +39,12 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
     fileInputRef.current.value = '';
   };
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive or streaming content updates
   useEffect(() => {
     if (endOfMessagesRef.current) {
       endOfMessagesRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [conversation?.messages, isLoading, isReasoning]);
+  }, [conversation?.messages, isLoading, isReasoning, streamingContent]);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -208,9 +208,14 @@ export const ChatWindow = ({ conversation, onSendMessage, isLoading, onRenameCon
         
         {isLoading && (
           <div className="message assistant">
-            <div className="message-avatar">🤖</div>
-            <div className="message-content thinking">
-              {isReasoning ? 'Deep thinking' : 'Thinking'}<span>.</span><span>.</span><span>.</span>
+            <div className="message-content">
+              {isReasoning ? (
+                <div className="thinking">Deep thinking<span>.</span><span>.</span><span>.</span></div>
+              ) : streamingContent ? (
+                <ReactMarkdown>{streamingContent}</ReactMarkdown>
+              ) : (
+                <div className="thinking">Thinking<span>.</span><span>.</span><span>.</span></div>
+              )}
             </div>
           </div>
         )}

@@ -189,6 +189,222 @@ const getAvailableTools = () => [
   }
 ];
 
+// New function for streaming chat completion
+export const streamChatCompletion = async (messages, settings, toolResponses = [], onToken) => {
+  try {
+    // Define available tools
+    const tools = getAvailableTools();
+
+    // If Pollinations.ai mode is enabled, use streaming from Pollinations.ai
+    if (settings.usePollinationsAi) {
+      // If there are tool responses, append them to messages
+      const finalMessages = toolResponses.length > 0
+        ? [...messages, ...toolResponses]
+        : messages;
+
+      console.log('Using Pollinations.ai for streaming completion');
+
+      let retries = 0;
+      const maxRetries = 3;
+      let response;
+
+      while (retries < maxRetries) {
+        response = await fetch(pollinationsEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: "openai",
+            messages: finalMessages,
+            tools: toolResponses.length === 0 ? tools : undefined,
+            stream: true
+          }),
+        });
+
+        if (response.status === 500) {
+          retries++;
+          console.log(`Pollinations.ai 500 error, retrying attempt ${retries}/${maxRetries}`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Delay for 1 second
+        } else {
+          break; // Exit loop if not a 500 error
+        }
+      }
+
+      if (response.status === 500) {
+        throw new Error('Pollinations.ai request failed after multiple retries with 500 error');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      let accumulatedContent = '';
+      let messageObj = { role: 'assistant', content: '' };
+      let toolCallsData = null;
+
+      return new Promise((resolve, reject) => {
+        const processStream = async () => {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              const chunk = decoder.decode(value);
+              const lines = chunk.split('\n').filter(line => line.trim() !== '');
+
+              for (const line of lines) {
+                if (line.startsWith("data:")) {
+                  const eventData = JSON.parse(line.substring(5).trim());
+
+                  if (eventData.choices &&
+                      eventData.choices[0] &&
+                      eventData.choices[0].delta &&
+                      eventData.choices[0].delta.tool_calls) {
+
+                    if (!toolCallsData) {
+                      toolCallsData = eventData.choices[0].delta.tool_calls;
+                    } else {
+                      eventData.choices[0].delta.tool_calls.forEach((newToolCall, i) => {
+                        if (!toolCallsData[i]) {
+                          toolCallsData[i] = newToolCall;
+                        } else if (newToolCall.function && newToolCall.function.arguments) {
+                          toolCallsData[i].function.arguments += newToolCall.function.arguments;
+                        }
+                      });
+                    }
+                  } else if (eventData.choices &&
+                             eventData.choices[0] &&
+                             eventData.choices[0].delta &&
+                             eventData.choices[0].delta.content) {
+
+                    accumulatedContent += eventData.choices[0].delta.content;
+                    messageObj.content = accumulatedContent;
+
+                    if (onToken) {
+                      onToken(eventData.choices[0].delta.content);
+                    }
+                  }
+                } else if (line.startsWith("event: error")) {
+                  const errorData = JSON.parse(line.substring(6).trim());
+                  console.error('SSE error:', errorData);
+                  reject(new Error(`SSE error: ${errorData.message}`));
+                  return;
+                }
+              }
+            }
+
+            if (toolCallsData) {
+              resolve({
+                message: {
+                  role: 'assistant',
+                  content: '',
+                  tool_calls: toolCallsData
+                },
+                finish_reason: 'tool_calls',
+                requiresToolCalls: true
+              });
+            } else {
+              resolve({
+                message: messageObj,
+                finish_reason: 'stop'
+              });
+            }
+          } catch (error) {
+            console.error('Error processing stream:', error);
+            reject(error);
+          } finally {
+            reader.releaseLock();
+          }
+        };
+
+        processStream();
+      });
+    } else {
+      // Use OpenAI/Azure with streaming
+      const client = new OpenAI({
+        baseURL: settings.endpoint || defaultEndpoint,
+        apiKey: settings.apiKey || defaultOpenAIKey,
+        dangerouslyAllowBrowser: true,
+      });
+
+      // If there are tool responses, append them to messages
+      const finalMessages = toolResponses.length > 0
+        ? [...messages, ...toolResponses]
+        : messages;
+
+      const stream = await client.chat.completions.create({
+        messages: finalMessages,
+        tools: toolResponses.length === 0 ? tools : undefined,
+        temperature: settings.temperature || 0.7,
+        max_tokens: parseInt(settings.maxTokens) || 8000,
+        model: settings.modelName,
+        stream: true,
+      });
+
+      let accumulatedContent = '';
+      let messageObj = { role: 'assistant', content: '' };
+      let toolCallsData = null;
+      let finishReason = null;
+
+      for await (const chunk of stream) {
+        // Check if this is the final chunk with finish reason
+        if (chunk.choices[0].finish_reason) {
+          finishReason = chunk.choices[0].finish_reason;
+        }
+
+        // Check if this chunk contains tool calls
+        if (chunk.choices[0].delta.tool_calls) {
+          // Initialize tool calls data if this is the first tool call chunk
+          if (!toolCallsData) {
+            toolCallsData = chunk.choices[0].delta.tool_calls;
+          } else {
+            // Update existing tool calls with new content
+            chunk.choices[0].delta.tool_calls.forEach((newToolCall, i) => {
+              if (!toolCallsData[i]) {
+                toolCallsData[i] = newToolCall;
+              } else if (newToolCall.function && newToolCall.function.arguments) {
+                toolCallsData[i].function.arguments += newToolCall.function.arguments;
+              }
+            });
+          }
+        } 
+        // Regular content update
+        else if (chunk.choices[0].delta.content) {
+          accumulatedContent += chunk.choices[0].delta.content;
+          messageObj.content = accumulatedContent;
+          
+          // Call the token callback with the new content chunk
+          if (onToken) {
+            onToken(chunk.choices[0].delta.content);
+          }
+        }
+      }
+
+      // Return the final object based on completion type
+      if (toolCallsData) {
+        return {
+          message: { 
+            role: 'assistant',
+            content: '',
+            tool_calls: toolCallsData
+          },
+          finish_reason: 'tool_calls',
+          requiresToolCalls: true
+        };
+      } else {
+        return {
+          message: messageObj,
+          finish_reason: finishReason || 'stop'
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Error in streamChatCompletion:', error);
+    throw new Error(error.message || 'Failed to get streaming completion from API');
+  }
+};
+
+// Keep the non-streaming version for backward compatibility
 export const fetchChatCompletion = async (messages, settings, toolResponses = []) => {
   try {
     // Define available tools
@@ -203,15 +419,40 @@ export const fetchChatCompletion = async (messages, settings, toolResponses = []
 
       console.log('Using Pollinations.ai for completion');
 
-      // Format messages according to the Pollinations.ai API requirements
-      const response = await axios.post(pollinationsEndpoint, {
-        model: "openai",
-        messages: finalMessages,
-        tools: toolResponses.length === 0 ? tools : undefined, // Include tools only on the initial request
-      });
+      let retries = 0;
+      const maxRetries = 3;
+      let response;
+      let data;
 
-      // Parse the response as JSON
-      const data = await response.data;
+      while (retries < maxRetries) {
+        try {
+          response = await axios.post(pollinationsEndpoint, {
+            model: "openai",
+            messages: finalMessages,
+            tools: toolResponses.length === 0 ? tools : undefined, // Include tools only on the initial request
+          }, {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          // Parse the response as JSON
+          data = await response.data;
+          break; // Exit loop if successful
+        } catch (error) {
+          if (error.response && error.response.status === 500) {
+            retries++;
+            console.error(`Pollinations.ai 500 error, retrying attempt ${retries}/${maxRetries}`);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Delay for 1 second
+          } else {
+            throw error; // Re-throw the error if it's not a 500
+          }
+        }
+      }
+
+      if (!data) {
+        throw new Error('Pollinations.ai request failed after multiple retries');
+      }
 
       // Check for tool calls or a regular completion
       if (data.choices && data.choices[0].finish_reason === 'tool_calls' && data.choices[0].message.tool_calls) {
