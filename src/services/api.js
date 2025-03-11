@@ -3,6 +3,7 @@ import axios from 'axios';
 
 // Get environment variables with fallbacks
 const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com';
+const pollinationsEndpoint = 'https://text.pollinations.ai/openai';
 const defaultOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';
 const defaultTavilyKey = import.meta.env.VITE_TAVILY_API_KEY || '';
 
@@ -76,33 +77,155 @@ export const generateChatName = async (messages, settings) => {
   }
 };
 
+// Define available tools for reuse
+const getAvailableTools = () => [
+  {
+    type: 'function',
+    function: {
+      name: 'performWebSearch',
+      description: 'Performs a web search using the Tavily API and returns the results.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The search query to perform on the web',
+          },
+          search_depth: {
+            type: 'string',
+            description: 'The depth of the search. A basic search costs 1 API Credit, while an advanced search costs 2 API Credits.',
+            enum: ['basic', 'advanced'],
+          },
+          max_results: {
+            type: 'integer',
+            description: 'The maximum number of search results to return (0-20).',
+            minimum: 1,
+            maximum: 20,
+          },
+          time_range: {
+            type: 'string',
+            description: 'The time range back from the current date to filter results.',
+            enum: ['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'],
+          },
+          days: {
+            type: 'integer',
+            description: 'Number of days back from the current date to include. Available only if topic is news.',
+            minimum: 0,
+          },
+          include_answer: {
+            type: 'boolean',
+            description: 'Include an LLM-generated answer to the provided query. basic or true returns a quick answer. advanced returns a more detailed answer.',
+          },
+          include_raw_content: {
+            type: 'boolean',
+            description: 'Include the cleaned and parsed HTML content of each search result.',
+          },
+          include_images: {
+            type: 'boolean',
+            description: 'Also perform an image search and include the results in the response.',
+          },
+          include_image_descriptions: {
+            type: 'boolean',
+            description: 'When include_images is true, also add a descriptive text for each image.',
+          },
+          include_domains: {
+            type: 'array',
+            description: 'A list of domains to specifically include in the search results.',
+            items: {
+              type: 'string'
+            }
+          },
+          exclude_domains: {
+            type: 'array',
+            description: 'A list of domains to specifically exclude from the search results.',
+            items: {
+              type: 'string'
+            }
+          },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'generateImage',
+      description: 'Generates an image using Pollinations.ai based on a text prompt.',
+      parameters: {
+        type: 'object',
+        properties: {
+          prompt: {
+            type: 'string',
+            description: 'A detailed description of the image to generate. Be specific and descriptive for best results.',
+          }
+        },
+        required: ['prompt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'performReasoning',
+      description: 'Performs extended reasoning using Pollinations AI reasoning model to help with complex problems.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: {
+            type: 'string',
+            description: 'The problem or question that requires deeper reasoning before answering.',
+          },
+          depth: {
+            type: 'string',
+            description: 'The depth of reasoning to perform.',
+            enum: ['basic', 'advanced'],
+            default: 'advanced'
+          }
+        },
+        required: ['query'],
+      },
+    },
+  }
+];
+
 export const fetchChatCompletion = async (messages, settings, toolResponses = []) => {
   try {
+    // Define available tools
+    const tools = getAvailableTools();
+
     // If Pollinations.ai mode is enabled, use the Pollinations.ai API
     if (settings.usePollinationsAi) {
       // If there are tool responses, append them to messages
-      const finalMessages = toolResponses.length > 0 
+      const finalMessages = toolResponses.length > 0
         ? [...messages, ...toolResponses]
         : messages;
-        
+
       console.log('Using Pollinations.ai for completion');
-      
+
       // Format messages according to the Pollinations.ai API requirements
-      const response = await axios.post('https://text.pollinations.ai/', {
+      const response = await axios.post(pollinationsEndpoint, {
+        model: "openai",
         messages: finalMessages,
-        seed: Math.floor(Math.random() * 1000),
-        model: settings.pollinationsModel || 'openai-large'
+        tools: toolResponses.length === 0 ? tools : undefined, // Include tools only on the initial request
       });
-      
-      // Based on the sample code, the response is the direct text content
-      if (response.data) {
-        // Format the response to match OpenAI format
+
+      // Parse the response as JSON
+      const data = await response.data;
+
+      // Check for tool calls or a regular completion
+      if (data.choices && data.choices[0].finish_reason === 'tool_calls' && data.choices[0].message.tool_calls) {
+        // Return the tool calls for processing
         return {
-          message: {
-            content: response.data,
-            role: 'assistant'
-          },
-          finish_reason: 'stop'
+          message: data.choices[0].message,
+          finish_reason: data.choices[0].finish_reason,
+          requiresToolCalls: true,
+        };
+      } else if (data.choices && data.choices[0].message) {
+        // Return the regular completion
+        return {
+          message: data.choices[0].message,
+          finish_reason: data.choices[0].finish_reason || 'stop', // Provide a default finish_reason
         };
       } else {
         throw new Error('Invalid response from Pollinations.ai');
@@ -115,140 +238,29 @@ export const fetchChatCompletion = async (messages, settings, toolResponses = []
         dangerouslyAllowBrowser: true,
       });
 
-      // Define available tools
-      const tools = [
-        {
-          type: 'function',
-          function: {
-            name: 'performWebSearch',
-            description: 'Performs a web search using the Tavily API and returns the results.',
-            parameters: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'The search query to perform on the web',
-                },
-                search_depth: {
-                  type: 'string',
-                  description: 'The depth of the search. A basic search costs 1 API Credit, while an advanced search costs 2 API Credits.',
-                  enum: ['basic', 'advanced'],
-                },
-                max_results: {
-                  type: 'integer',
-                  description: 'The maximum number of search results to return (0-20).',
-                  minimum: 1,
-                  maximum: 20,
-                },
-                time_range: {
-                  type: 'string',
-                  description: 'The time range back from the current date to filter results.',
-                  enum: ['day', 'week', 'month', 'year', 'd', 'w', 'm', 'y'],
-                },
-                days: {
-                  type: 'integer',
-                  description: 'Number of days back from the current date to include. Available only if topic is news.',
-                  minimum: 0,
-                },
-                include_answer: {
-                  type: 'boolean',
-                  description: 'Include an LLM-generated answer to the provided query. basic or true returns a quick answer. advanced returns a more detailed answer.',
-                },
-                include_raw_content: {
-                  type: 'boolean',
-                  description: 'Include the cleaned and parsed HTML content of each search result.',
-                },
-                include_images: {
-                  type: 'boolean',
-                  description: 'Also perform an image search and include the results in the response.',
-                },
-                include_image_descriptions: {
-                  type: 'boolean',
-                  description: 'When include_images is true, also add a descriptive text for each image.',
-                },
-                include_domains: {
-                  type: 'array',
-                  description: 'A list of domains to specifically include in the search results.',
-                  items: {
-                    type: 'string'
-                  }
-                },
-                exclude_domains: {
-                  type: 'array',
-                  description: 'A list of domains to specifically exclude from the search results.',
-                  items: {
-                    type: 'string'
-                  }
-                },
-              },
-              required: ['query'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'generateImage',
-            description: 'Generates an image using Pollinations.ai based on a text prompt.',
-            parameters: {
-              type: 'object',
-              properties: {
-                prompt: {
-                  type: 'string',
-                  description: 'A detailed description of the image to generate. Be specific and descriptive for best results.',
-                }
-              },
-              required: ['prompt'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'performReasoning',
-            description: 'Performs extended reasoning using Pollinations AI reasoning model to help with complex problems.',
-            parameters: {
-              type: 'object',
-              properties: {
-                query: {
-                  type: 'string',
-                  description: 'The problem or question that requires deeper reasoning before answering.',
-                },
-                depth: {
-                  type: 'string',
-                  description: 'The depth of reasoning to perform.',
-                  enum: ['basic', 'advanced'],
-                  default: 'advanced'
-                }
-              },
-              required: ['query'],
-            },
-          },
-        }
-      ];
-
       // If there are tool responses, append them to messages
-      const finalMessages = toolResponses.length > 0 
+      const finalMessages = toolResponses.length > 0
         ? [...messages, ...toolResponses]
         : messages;
 
       const response = await client.chat.completions.create({
         messages: finalMessages,
-        tools: toolResponses.length === 0 ? tools : undefined, // Only include tools on initial request
+        tools: toolResponses.length === 0 ? tools : undefined, // Include tools only on the initial request
         temperature: settings.temperature || 0.7,
         max_tokens: parseInt(settings.maxTokens) || 8000,
         model: settings.modelName,
       });
 
       const completion = response.choices[0];
-      
+
       // If the response indicates tool calls are needed
       if (completion.finish_reason === 'tool_calls' && completion.message.tool_calls) {
         // Return the tool calls for processing
-        return {
-          ...completion,
-          requiresToolCalls: true
-        };
+          return {
+            message: completion.message,
+            finish_reason: completion.finish_reason,
+            requiresToolCalls: true
+          };
       }
 
       // Otherwise return the regular completion
@@ -263,7 +275,7 @@ export const fetchChatCompletion = async (messages, settings, toolResponses = []
 // Add a direct implementation of Pollinations.ai text generation for debugging
 export const testPollinationsAi = async (message) => {
   try {
-    const response = await axios.post('https://text.pollinations.ai/', {
+    const response = await axios.post(pollinationsEndpoint, {
       messages: [
         { role: 'system', content: 'You are a helpful assistant.' },
         { role: 'user', content: message }

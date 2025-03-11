@@ -26,12 +26,13 @@ const getStatusMessage = (functionName, args) => {
 };
 
 // Helper function to process assistant response with tool results
+// Enhanced image handling in processAssistantResponse
 const processAssistantResponse = (response, toolResponses) => {
   let processedContent = response.message.content;
   const timestamp = Date.now();
 
   // Check for image URLs in tool responses
-  const imageToolResponse = toolResponses.find(tr => {
+  const imageToolResponses = toolResponses.filter(tr => {
     try {
       const content = JSON.parse(tr.content);
       return content.url && content.url.includes('pollinations.ai');
@@ -40,18 +41,24 @@ const processAssistantResponse = (response, toolResponses) => {
     }
   });
 
-  if (imageToolResponse) {
-    try {
-      const { url } = JSON.parse(imageToolResponse.content);
-      return { 
-        role: 'assistant',
-        content: processedContent,
-        timestamp,
-        imageUrl: url
-      };
-    } catch (e) {
-      console.error('Error processing image URL:', e);
-    }
+  if (imageToolResponses.length > 0) {
+    // You can handle multiple images if needed
+    const imageUrls = imageToolResponses.map(tr => {
+      try {
+        return JSON.parse(tr.content).url;
+      } catch (e) {
+        return null;
+      }
+    }).filter(url => url);
+
+    return { 
+      role: 'assistant',
+      content: processedContent,
+      timestamp,
+      imageUrls: imageUrls,
+      // Keep the first one for backward compatibility
+      imageUrl: imageUrls[0]
+    };
   }
 
   // Process any pollinations.ai URLs in the content
