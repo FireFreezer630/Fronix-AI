@@ -31,4 +31,8 @@ logs
 *.ntvs*
 *.njsproj
 *.sln
-*.sw? 
+*.sw?
+
+# Tempo specific files
+**/tempobook/dynamic/
+**/tempobook/storyboards/

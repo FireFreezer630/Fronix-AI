@@ -22,6 +22,15 @@ A ChatGPT-like clone built with React that integrates with the OpenAI API. This 
   - Copy message content to clipboard
 - Dark/Light mode toggle
 - Environment variables support for API keys
+- Authentication with Supabase
+  - Email/password authentication
+  - Google OAuth login
+  - Password reset functionality
+- Enhanced security features
+  - API key protection
+  - Rate limiting
+  - Input validation and sanitization
+  - Secure data storage
 
 ## Prerequisites
 
@@ -66,6 +75,47 @@ A ChatGPT-like clone built with React that integrates with the OpenAI API. This 
    ```
 
 5. Open your browser and navigate to `http://localhost:3000`
+
+## Authentication
+
+The application uses Supabase for authentication with the following options:
+
+1. **Email/Password Authentication**:
+   - Users can sign up with email and password
+   - Password reset functionality is available
+   - Secure password storage handled by Supabase
+
+2. **Google Authentication**:
+   - One-click sign in with Google
+   - Secure OAuth flow handled by Supabase
+   - No password storage required
+
+### Setting up Google Authentication
+
+1. Create a Google OAuth client in the [Google Cloud Console](https://console.cloud.google.com/)
+2. Configure the OAuth client with the appropriate redirect URIs
+3. Add the Google OAuth credentials in your Supabase project settings
+4. No additional code changes required - the app is already configured to use Google authentication
+
+## Security Features
+
+The application includes several security enhancements:
+
+1. **API Key Protection**:
+   - API keys from environment variables are never stored in localStorage
+   - Sensitive data is obfuscated when stored
+
+2. **Rate Limiting**:
+   - Prevents abuse by limiting the number of API requests
+   - Configurable time windows and request limits
+
+3. **Input Validation**:
+   - All user inputs are validated before processing
+   - Messages are sanitized to prevent injection attacks
+
+4. **Secure Storage**:
+   - Session storage used for sensitive information
+   - Data obfuscation for stored credentials
 
 ## Usage
 
