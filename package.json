@@ -20,6 +20,5 @@
     "@vitejs/plugin-react": "^4.0.0",
     "concurrently": "^9.1.2",
     "vite": "^4.3.9",
-    "tempo-devtools": "^2.0.94"
   }
 }
