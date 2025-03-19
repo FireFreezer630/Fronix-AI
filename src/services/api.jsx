@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import axios from 'axios';
 
 // Get environment variables with fallbacks
-const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://models.inference.ai.azure.com';
+const defaultEndpoint = import.meta.env.VITE_API_ENDPOINT || 'https://api.pollinations.ai';
 const pollinationsEndpoint = 'https://text.pollinations.ai/openai';
 const defaultOpenAIKey = import.meta.env.VITE_OPENAI_API_KEY || '';
 const defaultTavilyKey = import.meta.env.VITE_TAVILY_API_KEY || '';
@@ -256,14 +256,15 @@ export const streamChatCompletion = async (messages, settings, toolResponses = [
                 if (line.startsWith("data:")) {
                   const eventData = JSON.parse(line.substring(5).trim());
 
-                  if (eventData.choices &&
-                      eventData.choices[0] &&
-                      eventData.choices[0].delta &&
-                      eventData.choices[0].delta.tool_calls) {
-
+                  if (
+                    eventData.choices &&
+                    eventData.choices[0] &&
+                    eventData.choices[0].delta &&
+                    eventData.choices[0].delta.tool_calls
+                  ) {
                     if (!toolCallsData) {
                       toolCallsData = eventData.choices[0].delta.tool_calls;
-                    } else {
+                    } else if (Array.isArray(eventData.choices[0].delta.tool_calls)) {
                       eventData.choices[0].delta.tool_calls.forEach((newToolCall, i) => {
                         if (!toolCallsData[i]) {
                           toolCallsData[i] = newToolCall;
@@ -272,10 +273,12 @@ export const streamChatCompletion = async (messages, settings, toolResponses = [
                         }
                       });
                     }
-                  } else if (eventData.choices &&
-                             eventData.choices[0] &&
-                             eventData.choices[0].delta &&
-                             eventData.choices[0].delta.content) {
+                  } else if (
+                    eventData.choices &&
+                    eventData.choices[0] &&
+                    eventData.choices[0].delta &&
+                    eventData.choices[0].delta.content
+                  ) {
 
                     accumulatedContent += eventData.choices[0].delta.content;
                     messageObj.content = accumulatedContent;
@@ -332,6 +335,7 @@ export const streamChatCompletion = async (messages, settings, toolResponses = [
         ? [...messages, ...toolResponses]
         : messages;
 
+      console.log("streamChatCompletion - toolResponses:", toolResponses);
       const stream = await client.chat.completions.create({
         messages: finalMessages,
         tools: toolResponses.length === 0 ? tools : undefined,
@@ -341,6 +345,7 @@ export const streamChatCompletion = async (messages, settings, toolResponses = [
         stream: true,
       });
 
+      console.log("streamChatCompletion - stream:", stream);
       let accumulatedContent = '';
       let messageObj = { role: 'assistant', content: '' };
       let toolCallsData = null;
@@ -427,9 +432,9 @@ export const fetchChatCompletion = async (messages, settings, toolResponses = []
       while (retries < maxRetries) {
         try {
           response = await axios.post(pollinationsEndpoint, {
-            model: "openai",
+            model: settings.pollinationsModel || "openai-large", // Use settings.pollinationsModel
             messages: finalMessages,
-            tools: toolResponses.length === 0 ? tools : undefined, // Include tools only on the initial request
+            tools: tools, // Always include tools
           }, {
             headers: {
               'Content-Type': 'application/json',
@@ -480,10 +485,12 @@ export const fetchChatCompletion = async (messages, settings, toolResponses = []
       });
 
       // If there are tool responses, append them to messages
-      const finalMessages = toolResponses.length > 0
-        ? [...messages, ...toolResponses]
+      const toolResponsesArray = Array.isArray(toolResponses) ? toolResponses : [];
+      const finalMessages = toolResponsesArray.length > 0
+        ? [...messages, ...toolResponsesArray]
         : messages;
 
+      console.log("fetchChatCompletion - toolResponses:", toolResponses, typeof toolResponses);
       const response = await client.chat.completions.create({
         messages: finalMessages,
         tools: toolResponses.length === 0 ? tools : undefined, // Include tools only on the initial request
@@ -492,16 +499,17 @@ export const fetchChatCompletion = async (messages, settings, toolResponses = []
         model: settings.modelName,
       });
 
+      console.log("fetchChatCompletion - response:", JSON.stringify(response));
       const completion = response.choices[0];
 
       // If the response indicates tool calls are needed
-      if (completion.finish_reason === 'tool_calls' && completion.message.tool_calls) {
+      if (completion.finish_reason === 'tool_calls' && Array.isArray(completion.message.tool_calls)) {
         // Return the tool calls for processing
-          return {
-            message: completion.message,
-            finish_reason: completion.finish_reason,
-            requiresToolCalls: true
-          };
+        return {
+          message: completion.message,
+          finish_reason: completion.finish_reason,
+          requiresToolCalls: true
+        };
       }
 
       // Otherwise return the regular completion

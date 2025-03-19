@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ChatWindow } from './components/ChatWindow';
 import { SettingsModal } from './components/SettingsModal';
-import { fetchChatCompletion, performWebSearch, generateImage, performReasoning } from './services/api';
+import { fetchChatCompletion, performWebSearch, generateImage, performReasoning } from './services/api.jsx';
 import { Bars3Icon, PencilIcon, CheckIcon } from '@heroicons/react/24/solid';
 import './App.css';
 
@@ -237,7 +237,6 @@ function App() {
     }
   };
 
-  // New function to handle streaming response chunks
   const handleStreamingResponse = (chunk, conversationId, messageId) => {
     setConversations(prev => prev.map(conv => {
       if (conv.id !== conversationId) return conv;
@@ -352,178 +351,19 @@ function App() {
 
     try {
       // Determine if we should use streaming based on settings
-      const useStreaming = apiSettings.streamingEnabled;
-      
+      const useStreaming = false; //apiSettings.streamingEnabled;
+
       // Initial completion request
       if (useStreaming) {
-        // Create placeholder message for streaming
-        const assistantMessageId = Date.now();
-        const assistantMessage = { 
-          id: assistantMessageId,
-          role: 'assistant', 
-          content: '', 
-          timestamp: Date.now(),
-          isStreaming: true
-        };
         
-        setConversations(prev => prev.map(conv => 
-          conv.id === currentConversationId 
-            ? { ...conv, messages: [...conv.messages, assistantMessage] }
-            : conv
-        ));
-        
-        setCurrentlyStreamingId(assistantMessageId);
-        
-        // Start streaming request
-        const response = await fetchChatCompletion(
-          messages, 
-          { ...apiSettings, streaming: true, signal },
-          (chunk) => handleStreamingResponse(chunk, currentConversationId, assistantMessageId)
-        );
-        
-        // After streaming completes, update the message to mark streaming as finished
-        setConversations(prev => prev.map(conv => {
-          if (conv.id !== currentConversationId) return conv;
-          
-          return {
-            ...conv,
-            messages: conv.messages.map(msg => 
-              msg.id === assistantMessageId 
-                ? { ...msg, isStreaming: false }
-                : msg
-            )
-          };
-        }));
-        
-        setCurrentlyStreamingId(null);
-        
-        // Handle tool calls if present
-        if (response.requiresToolCalls && response.message.tool_calls) {
-          const toolResponses = [];
-          
-          // Process each tool call sequentially
-          for (const toolCall of response.message.tool_calls) {
-            if (toolCall.type !== 'function') continue;
-
-            let toolResult;
-            const functionName = toolCall.function.name;
-            const functionArgs = JSON.parse(toolCall.function.arguments);
-            
-            // Add temporary message to show tool status
-            const statusMessage = { 
-              role: 'system', 
-              content: getStatusMessage(functionName, functionArgs),
-              timestamp: Date.now() 
-            };
-            
-            setConversations(prev => prev.map(conv => 
-              conv.id === currentConversationId 
-                ? { ...conv, messages: [...conv.messages, statusMessage] }
-                : conv
-            ));
-
-            if (functionName === 'performWebSearch') {
-              const { query, ...searchOptions } = functionArgs;
-              toolResult = await performWebSearch(query, apiSettings.tavilyApiKey, searchOptions);
-            } else if (functionName === 'performReasoning') {
-              toolResult = await performReasoning(functionArgs.query, {
-                depth: functionArgs.depth || 'advanced'
-              });
-            } else if (functionName === 'generateImage') {
-              const imageUrl = await generateImage(functionArgs.prompt);
-              toolResult = JSON.stringify({ url: imageUrl });
-            }
-
-            // Create tool response
-            const toolResponse = {
-              role: 'tool',
-              content: toolResult,
-              tool_call_id: toolCall.id
-            };
-            toolResponses.push(toolResponse);
-          }
-
-          // Make final completion request with all tool responses
-          const finalMessages = [...messages, response.message, ...toolResponses];
-          
-          // Create a placeholder message for the final assistant response
-          const finalMessageId = Date.now();
-          const finalPlaceholder = {
-            id: finalMessageId,
-            role: 'assistant',
-            content: '',
-            timestamp: Date.now(),
-            isStreaming: true
-          };
-          
-          // Update conversation with placeholder and remove tool status messages
-          setConversations(prev => prev.map(conv => 
-            conv.id === currentConversationId 
-              ? {
-                  ...conv,
-                  messages: [
-                    ...conv.messages.filter(msg => 
-                      !msg.content.startsWith('Searching') && 
-                      !msg.content.startsWith('Reasoning') && 
-                      !msg.content.startsWith('Generating') &&
-                      msg.id !== assistantMessageId
-                    ),
-                    finalPlaceholder
-                  ]
-                }
-              : conv
-          ));
-          
-          setCurrentlyStreamingId(finalMessageId);
-          
-          // Start streaming the final response
-          const finalResponse = await fetchChatCompletion(
-            finalMessages,
-            { ...apiSettings, streaming: true, signal },
-            (chunk) => handleStreamingResponse(chunk, currentConversationId, finalMessageId)
-          );
-          
-          // Process any pollinations.ai URLs in the final content
-          setConversations(prev => prev.map(conv => {
-            if (conv.id !== currentConversationId) return conv;
-            
-            const messages = [...conv.messages];
-            const messageIndex = messages.findIndex(msg => msg.id === finalMessageId);
-            
-            if (messageIndex !== -1) {
-              const pollinationsRegex = /https:\/\/pollinations\.ai\/prompt\/([^)\s]+)/g;
-              let processedContent = messages[messageIndex].content;
-              processedContent = processedContent.replace(pollinationsRegex, (match) => {
-                return `![Generated Image](${match})`;
-              });
-              
-              // Process any images from tools
-              const assistantMessage = processAssistantResponse(
-                { message: { content: processedContent } }, 
-                toolResponses
-              );
-              
-              messages[messageIndex] = {
-                ...messages[messageIndex],
-                ...assistantMessage,
-                isStreaming: false,
-                content: assistantMessage.content
-              };
-            }
-            
-            return { ...conv, messages };
-          }));
-          
-          setCurrentlyStreamingId(null);
-        }
       } else {
         // Non-streaming implementation (original code)
         const response = await fetchChatCompletion(messages, apiSettings);
-        
+
         // Handle tool calls if present
         if (response.requiresToolCalls && response.message.tool_calls) {
           const toolResponses = [];
-          
+
           // Process each tool call sequentially
           for (const toolCall of response.message.tool_calls) {
             if (toolCall.type !== 'function') continue;
@@ -531,16 +371,16 @@ function App() {
             let toolResult;
             const functionName = toolCall.function.name;
             const functionArgs = JSON.parse(toolCall.function.arguments);
-            
+
             // Add temporary message to show tool status
             const statusMessage = { 
-              role: 'system', 
+              role: 'system',
               content: getStatusMessage(functionName, functionArgs),
-              timestamp: Date.now() 
+              timestamp: Date.now()
             };
-            
-            setConversations(prev => prev.map(conv => 
-              conv.id === currentConversationId 
+
+            setConversations(prev => prev.map(conv =>
+              conv.id === currentConversationId
                 ? { ...conv, messages: [...conv.messages, statusMessage] }
                 : conv
             ));

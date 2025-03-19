@@ -11,7 +11,8 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
     temperature: settings.temperature || 0.7,
     maxTokens: settings.maxTokens || 8000,
     darkMode: settings.darkMode || false,
-    usePollinationsAi: settings.usePollinationsAi || false
+    usePollinationsAi: settings.usePollinationsAi || true,
+    pollinationsModel: import.meta.env.VITE_POLLINATIONS_MODEL || settings.pollinationsModel || 'openai-large'
   });
 
   // Update form data when environment variables change
@@ -20,9 +21,10 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
       ...prev,
       apiKey: import.meta.env.VITE_OPENAI_API_KEY || prev.apiKey,
       tavilyApiKey: import.meta.env.VITE_TAVILY_API_KEY || prev.tavilyApiKey,
-      endpoint: import.meta.env.VITE_API_ENDPOINT || prev.endpoint
+      endpoint: import.meta.env.VITE_API_ENDPOINT || prev.endpoint,
+      pollinationsModel: import.meta.env.VITE_POLLINATIONS_MODEL || prev.pollinationsModel
     }));
-  }, [import.meta.env.VITE_OPENAI_API_KEY, import.meta.env.VITE_TAVILY_API_KEY, import.meta.env.VITE_API_ENDPOINT]);
+  }, [import.meta.env.VITE_OPENAI_API_KEY, import.meta.env.VITE_TAVILY_API_KEY, import.meta.env.VITE_API_ENDPOINT, import.meta.env.VITE_POLLINATIONS_MODEL]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -34,7 +36,8 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(formData);
+    const updatedSettings = { ...settings, ...formData };
+    onSave(updatedSettings);
   };
 
   const toggleDarkMode = () => {
@@ -43,7 +46,7 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
       ...formData,
       darkMode: newDarkMode
     });
-    const updatedSettings = { ...settings, darkMode: newDarkMode };
+    const updatedSettings = { ...formData, darkMode: newDarkMode };
     onSave(updatedSettings);
   };
 
@@ -166,7 +169,7 @@ export const SettingsModal = ({ settings, onSave, onClose }) => {
                 >
                   <option value="openai-large">openai-large</option>
                   <option value="openai-reasoning">openai-reasoning</option>
-                  <option value="local-small">local-small</option>
+                  <option value="deepseek-reasoner">deepseek-reasoner</option>
                 </select>
                 <p className="form-help">Select the Pollinations.ai model to use for generating responses.</p>
               </div>

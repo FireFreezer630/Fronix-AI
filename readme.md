@@ -53,7 +53,7 @@ A ChatGPT-like clone built with React that integrates with the OpenAI API. This 
    ```
    VITE_OPENAI_API_KEY=your_openai_api_key_here
    VITE_TAVILY_API_KEY=your_tavily_api_key_here
-   VITE_API_ENDPOINT=https://models.inference.ai.azure.com
+   VITE_API_ENDPOINT=https://api.pollinations.ai
    ```
 
 4. Start the development server

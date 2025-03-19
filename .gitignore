@@ -32,3 +32,5 @@ logs
 *.njsproj
 *.sln
 *.sw? 
+memory_bank
+Docs
